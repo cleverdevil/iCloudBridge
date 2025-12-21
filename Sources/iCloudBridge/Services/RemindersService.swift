@@ -27,13 +27,17 @@ enum RemindersError: Error, LocalizedError {
 
 @MainActor
 class RemindersService: ObservableObject {
-    private let eventStore = EKEventStore()
+    private var eventStore = EKEventStore()
 
     @Published var authorizationStatus: EKAuthorizationStatus = .notDetermined
     @Published var allLists: [EKCalendar] = []
 
     init() {
         updateAuthorizationStatus()
+        // If already authorized, load lists immediately
+        if authorizationStatus == .fullAccess {
+            loadLists()
+        }
     }
 
     func updateAuthorizationStatus() {
@@ -43,11 +47,9 @@ class RemindersService: ObservableObject {
     func requestAccess() async -> Bool {
         do {
             let granted = try await eventStore.requestFullAccessToReminders()
-            await MainActor.run {
-                updateAuthorizationStatus()
-                if granted {
-                    loadLists()
-                }
+            updateAuthorizationStatus()
+            if granted {
+                loadLists()
             }
             return granted
         } catch {
@@ -57,7 +59,10 @@ class RemindersService: ObservableObject {
     }
 
     func loadLists() {
+        // Reset the event store to ensure fresh data
+        eventStore.reset()
         allLists = eventStore.calendars(for: .reminder)
+        print("Loaded \(allLists.count) reminder lists")
     }
 
     // MARK: - List Operations
