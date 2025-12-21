@@ -1,7 +1,16 @@
 import SwiftUI
+import AppKit
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Ensure the app runs as an accessory (no dock icon)
+        NSApp.setActivationPolicy(.accessory)
+    }
+}
 
 @main
 struct iCloudBridgeApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
     @State private var serverManager: ServerManager?
 
