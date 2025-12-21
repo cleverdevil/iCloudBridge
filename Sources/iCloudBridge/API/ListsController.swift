@@ -67,9 +67,16 @@ struct ListsController: RouteCollection {
             throw Abort(.notFound, reason: "List not found")
         }
 
-        let reminders = try await remindersService.getReminders(in: list)
+        // Get includeCompleted query parameter (default: false)
+        let includeCompleted = (try? req.query.get(Bool.self, at: "includeCompleted")) ?? false
+
+        let allReminders = try await remindersService.getReminders(in: list)
+
+        // Filter by completion status unless includeCompleted is true
+        let filteredReminders = includeCompleted ? allReminders : allReminders.filter { !$0.isCompleted }
+
         return await MainActor.run {
-            reminders.map { remindersService.toDTO($0) }
+            filteredReminders.map { remindersService.toDTO($0) }
         }
     }
 

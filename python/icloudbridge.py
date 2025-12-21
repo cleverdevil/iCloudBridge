@@ -220,20 +220,27 @@ class iCloudBridge:
 
     # Reminder operations
 
-    def get_reminders(self, list_id: str) -> list[Reminder]:
+    def get_reminders(self, list_id: str, include_completed: bool = False) -> list[Reminder]:
         """
-        Get all reminders in a specific list.
+        Get reminders in a specific list.
+
+        By default, only incomplete reminders are returned. Set include_completed=True
+        to include completed reminders as well.
 
         Args:
             list_id: The list identifier
+            include_completed: Whether to include completed reminders (default: False)
 
         Returns:
-            list[Reminder]: All reminders in the list
+            list[Reminder]: Reminders in the list (incomplete only by default)
 
         Raises:
             NotFoundError: If the list is not found
         """
-        data = self._request("GET", f"/lists/{urllib.parse.quote(list_id)}/reminders")
+        path = f"/lists/{urllib.parse.quote(list_id)}/reminders"
+        if include_completed:
+            path += "?includeCompleted=true"
+        data = self._request("GET", path)
         return [Reminder.from_dict(item) for item in data]
 
     def get_reminder(self, reminder_id: str) -> Reminder:
@@ -398,11 +405,16 @@ if __name__ == "__main__":
             print(f"  - {lst.title} ({lst.reminder_count} reminders)")
 
         if lists:
+            # Get incomplete reminders (default)
             reminders = client.get_reminders(lists[0].id)
-            print(f"\nReminders in '{lists[0].title}':")
+            print(f"\nIncomplete reminders in '{lists[0].title}':")
             for r in reminders:
                 status = "[x]" if r.is_completed else "[ ]"
                 print(f"  {status} {r.title}")
+
+            # Get all reminders including completed
+            all_reminders = client.get_reminders(lists[0].id, include_completed=True)
+            print(f"\nAll reminders (including completed): {len(all_reminders)} total")
 
     except iCloudBridgeError as e:
         print(f"Error: {e}")
