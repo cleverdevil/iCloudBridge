@@ -115,6 +115,9 @@ class RemindersService: ObservableObject {
     }
 
     func updateReminder(_ reminder: EKReminder, title: String?, notes: String?, isCompleted: Bool?, priority: Int?, dueDate: Date?) throws -> EKReminder {
+        // Refresh the reminder to ensure we have the latest version
+        reminder.refresh()
+
         if let title = title {
             reminder.title = title
         }
@@ -128,18 +131,33 @@ class RemindersService: ObservableObject {
             reminder.priority = priority
         }
         if let dueDate = dueDate {
+            // Clear existing due date first to ensure clean update
+            reminder.dueDateComponents = nil
+
             var components = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute, .second, .timeZone],
                 from: dueDate
             )
             components.calendar = Calendar.current
             reminder.dueDateComponents = components
+
+            print("Setting due date to: \(dueDate)")
+            print("DateComponents: \(components)")
         }
 
         do {
             try eventStore.save(reminder, commit: true)
-            return reminder
+            print("Saved reminder: \(reminder.title ?? "untitled")")
+
+            // Reload the reminder to get fresh data
+            eventStore.reset()
+            guard let updatedReminder = eventStore.calendarItem(withIdentifier: reminder.calendarItemIdentifier) as? EKReminder else {
+                throw RemindersError.saveFailed("Could not reload reminder after save")
+            }
+
+            return updatedReminder
         } catch {
+            print("Save failed: \(error)")
             throw RemindersError.saveFailed(error.localizedDescription)
         }
     }
