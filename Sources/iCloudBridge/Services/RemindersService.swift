@@ -187,49 +187,77 @@ class RemindersService: ObservableObject {
 
             // Check if existing reminder has time components or is all-day
             let existingComponents = reminder.dueDateComponents
+            let hadExistingDate = existingComponents != nil
             let hasTime = existingComponents?.hour != nil || existingComponents?.minute != nil
-            log("  Existing reminder has time component: \(hasTime)")
+            log("  Existing reminder had date: \(hadExistingDate), had time component: \(hasTime)")
 
-            // CRITICAL: EventKit requires startDateComponents to be set and UPDATED when dueDateComponents changes
-            // Always update startDateComponents to match the new due date
+            // CRITICAL: To update an existing due date, we must:
+            // 1. Clear both start and due date components
+            // 2. Save that change
+            // 3. Then set new components
+            // 4. Save again
+            // This mimics manually clearing the date in Reminders app first
+
+            if hadExistingDate {
+                log("  Clearing existing date components first...")
+                reminder.startDateComponents = nil
+                reminder.dueDateComponents = nil
+
+                // Save the cleared state
+                do {
+                    try eventStore.save(reminder, commit: true)
+                    log("  Saved cleared date state")
+                } catch {
+                    log("  Failed to save cleared state: \(error)")
+                    throw RemindersError.saveFailed("Failed to clear existing date: \(error.localizedDescription)")
+                }
+
+                // Reload the reminder to get fresh state
+                eventStore.reset()
+                guard let clearedReminder = eventStore.calendarItem(withIdentifier: reminder.calendarItemIdentifier) as? EKReminder else {
+                    throw RemindersError.saveFailed("Could not reload reminder after clearing date")
+                }
+
+                // Update our reference to the cleared reminder
+                reminder.refresh()
+            }
+
+            // Now set the new date components
+            // Determine if this should be timed or all-day based on the provided date
+            let calendar = Calendar.current
+            let timeComponents = calendar.dateComponents([.hour, .minute], from: dueDate)
+            let isMidnight = timeComponents.hour == 0 && timeComponents.minute == 0
+
+            // If the new date has a specific time (not midnight), make it timed
+            // Otherwise make it all-day
+            let shouldBeTimed = !isMidnight
+
+            log("  Setting new date as \(shouldBeTimed ? "TIMED" : "ALL-DAY") (midnight=\(isMidnight))")
+
             var startComponents: DateComponents
-            if hasTime {
-                startComponents = Calendar.current.dateComponents(
+            var dueComponents: DateComponents
+
+            if shouldBeTimed {
+                startComponents = calendar.dateComponents(
                     [.year, .month, .day, .hour, .minute, .timeZone],
                     from: dueDate
                 )
-            } else {
-                startComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day],
+                dueComponents = calendar.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .timeZone],
                     from: dueDate
                 )
+                log("  TIMED: year=\(dueComponents.year ?? 0) month=\(dueComponents.month ?? 0) day=\(dueComponents.day ?? 0) hour=\(dueComponents.hour ?? 0) minute=\(dueComponents.minute ?? 0) tz=\(dueComponents.timeZone?.identifier ?? "nil")")
+            } else {
+                startComponents = calendar.dateComponents([.year, .month, .day], from: dueDate)
+                dueComponents = calendar.dateComponents([.year, .month, .day], from: dueDate)
+                log("  ALL-DAY: year=\(dueComponents.year ?? 0) month=\(dueComponents.month ?? 0) day=\(dueComponents.day ?? 0)")
             }
-            startComponents.calendar = Calendar.current
+
+            startComponents.calendar = calendar
+            dueComponents.calendar = calendar
+
             reminder.startDateComponents = startComponents
-            log("  Updated startDateComponents to match due date")
-
-            // Clear existing due date first to ensure clean update
-            reminder.dueDateComponents = nil
-
-            var components: DateComponents
-            if hasTime {
-                // Timed reminder - include hour and minute
-                components = Calendar.current.dateComponents(
-                    [.year, .month, .day, .hour, .minute, .timeZone],
-                    from: dueDate
-                )
-                log("  Setting as TIMED reminder: year=\(components.year ?? 0) month=\(components.month ?? 0) day=\(components.day ?? 0) hour=\(components.hour ?? 0) minute=\(components.minute ?? 0) tz=\(components.timeZone?.identifier ?? "nil")")
-            } else {
-                // All-day reminder - only date components, no time
-                components = Calendar.current.dateComponents(
-                    [.year, .month, .day],
-                    from: dueDate
-                )
-                log("  Setting as ALL-DAY reminder: year=\(components.year ?? 0) month=\(components.month ?? 0) day=\(components.day ?? 0)")
-            }
-
-            components.calendar = Calendar.current
-            reminder.dueDateComponents = components
+            reminder.dueDateComponents = dueComponents
         }
 
         do {
