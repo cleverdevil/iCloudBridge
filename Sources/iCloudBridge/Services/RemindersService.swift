@@ -190,25 +190,23 @@ class RemindersService: ObservableObject {
             let hasTime = existingComponents?.hour != nil || existingComponents?.minute != nil
             log("  Existing reminder has time component: \(hasTime)")
 
-            // CRITICAL: EventKit requires startDateComponents to be set if dueDateComponents is set
-            // If the reminder doesn't have a start date, use the due date as the start date
-            if reminder.startDateComponents == nil {
-                log("  No startDateComponents, setting to due date")
-                var startComponents: DateComponents
-                if hasTime {
-                    startComponents = Calendar.current.dateComponents(
-                        [.year, .month, .day, .hour, .minute, .timeZone],
-                        from: dueDate
-                    )
-                } else {
-                    startComponents = Calendar.current.dateComponents(
-                        [.year, .month, .day],
-                        from: dueDate
-                    )
-                }
-                startComponents.calendar = Calendar.current
-                reminder.startDateComponents = startComponents
+            // CRITICAL: EventKit requires startDateComponents to be set and UPDATED when dueDateComponents changes
+            // Always update startDateComponents to match the new due date
+            var startComponents: DateComponents
+            if hasTime {
+                startComponents = Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .timeZone],
+                    from: dueDate
+                )
+            } else {
+                startComponents = Calendar.current.dateComponents(
+                    [.year, .month, .day],
+                    from: dueDate
+                )
             }
+            startComponents.calendar = Calendar.current
+            reminder.startDateComponents = startComponents
+            log("  Updated startDateComponents to match due date")
 
             // Clear existing due date first to ensure clean update
             reminder.dueDateComponents = nil
