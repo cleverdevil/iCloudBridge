@@ -98,10 +98,12 @@ class RemindersService: ObservableObject {
         reminder.priority = priority ?? 0
 
         if let dueDate = dueDate {
-            reminder.dueDateComponents = Calendar.current.dateComponents(
-                [.year, .month, .day, .hour, .minute],
+            var components = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute, .second, .timeZone],
                 from: dueDate
             )
+            components.calendar = Calendar.current
+            reminder.dueDateComponents = components
         }
 
         do {
@@ -126,10 +128,12 @@ class RemindersService: ObservableObject {
             reminder.priority = priority
         }
         if let dueDate = dueDate {
-            reminder.dueDateComponents = Calendar.current.dateComponents(
-                [.year, .month, .day, .hour, .minute],
+            var components = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute, .second, .timeZone],
                 from: dueDate
             )
+            components.calendar = Calendar.current
+            reminder.dueDateComponents = components
         }
 
         do {
