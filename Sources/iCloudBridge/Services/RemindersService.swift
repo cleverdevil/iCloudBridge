@@ -130,17 +130,25 @@ class RemindersService: ObservableObject {
             let isMidnight = components.hour == 0 && components.minute == 0
 
             var dueDateComponents: DateComponents
+            var startDateComponents: DateComponents
+
             if isMidnight {
                 // Midnight = likely intended as all-day
                 dueDateComponents = calendar.dateComponents([.year, .month, .day], from: dueDate)
+                startDateComponents = calendar.dateComponents([.year, .month, .day], from: dueDate)
                 log("Creating ALL-DAY reminder: \(title)")
             } else {
                 // Has specific time
                 dueDateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: dueDate)
+                startDateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: dueDate)
                 log("Creating TIMED reminder: \(title)")
             }
 
             dueDateComponents.calendar = calendar
+            startDateComponents.calendar = calendar
+
+            // CRITICAL: EventKit requires startDateComponents to be set when dueDateComponents is set
+            reminder.startDateComponents = startDateComponents
             reminder.dueDateComponents = dueDateComponents
         }
 
@@ -181,6 +189,26 @@ class RemindersService: ObservableObject {
             let existingComponents = reminder.dueDateComponents
             let hasTime = existingComponents?.hour != nil || existingComponents?.minute != nil
             log("  Existing reminder has time component: \(hasTime)")
+
+            // CRITICAL: EventKit requires startDateComponents to be set if dueDateComponents is set
+            // If the reminder doesn't have a start date, use the due date as the start date
+            if reminder.startDateComponents == nil {
+                log("  No startDateComponents, setting to due date")
+                var startComponents: DateComponents
+                if hasTime {
+                    startComponents = Calendar.current.dateComponents(
+                        [.year, .month, .day, .hour, .minute, .timeZone],
+                        from: dueDate
+                    )
+                } else {
+                    startComponents = Calendar.current.dateComponents(
+                        [.year, .month, .day],
+                        from: dueDate
+                    )
+                }
+                startComponents.calendar = Calendar.current
+                reminder.startDateComponents = startComponents
+            }
 
             // Clear existing due date first to ensure clean update
             reminder.dueDateComponents = nil
