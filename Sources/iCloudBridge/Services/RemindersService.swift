@@ -32,12 +32,37 @@ class RemindersService: ObservableObject {
     @Published var authorizationStatus: EKAuthorizationStatus = .notDetermined
     @Published var allLists: [EKCalendar] = []
 
+    private let logFileURL: URL = {
+        let logsDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/iCloudBridge")
+        try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        return logsDir.appendingPathComponent("reminders.log")
+    }()
+
     init() {
+        log("RemindersService initialized")
         updateAuthorizationStatus()
         // If already authorized, load lists immediately
         if authorizationStatus == .fullAccess {
             loadLists()
         }
+    }
+
+    private func log(_ message: String) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let logMessage = "[\(timestamp)] \(message)\n"
+
+        if let data = logMessage.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logFileURL.path) {
+                if let fileHandle = try? FileHandle(forWritingTo: logFileURL) {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(data)
+                    fileHandle.closeFile()
+                }
+            } else {
+                try? data.write(to: logFileURL)
+            }
+        }
+        print(message) // Also print to console when running from CLI
     }
 
     func updateAuthorizationStatus() {
@@ -51,9 +76,10 @@ class RemindersService: ObservableObject {
             if granted {
                 loadLists()
             }
+            log("Access request result: \(granted)")
             return granted
         } catch {
-            print("Failed to request access: \(error)")
+            log("Failed to request access: \(error)")
             return false
         }
     }
@@ -62,7 +88,7 @@ class RemindersService: ObservableObject {
         // Reset the event store to ensure fresh data
         eventStore.reset()
         allLists = eventStore.calendars(for: .reminder)
-        print("Loaded \(allLists.count) reminder lists")
+        log("Loaded \(allLists.count) reminder lists")
     }
 
     // MARK: - List Operations
@@ -115,22 +141,30 @@ class RemindersService: ObservableObject {
     }
 
     func updateReminder(_ reminder: EKReminder, title: String?, notes: String?, isCompleted: Bool?, priority: Int?, dueDate: Date?) throws -> EKReminder {
+        log("Updating reminder: \(reminder.calendarItemIdentifier)")
+
         // Refresh the reminder to ensure we have the latest version
         reminder.refresh()
 
         if let title = title {
+            log("  Setting title: \(title)")
             reminder.title = title
         }
         if let notes = notes {
+            log("  Setting notes: \(notes)")
             reminder.notes = notes
         }
         if let isCompleted = isCompleted {
+            log("  Setting completed: \(isCompleted)")
             reminder.isCompleted = isCompleted
         }
         if let priority = priority {
+            log("  Setting priority: \(priority)")
             reminder.priority = priority
         }
         if let dueDate = dueDate {
+            log("  Setting due date to: \(dueDate)")
+
             // Clear existing due date first to ensure clean update
             reminder.dueDateComponents = nil
 
@@ -141,13 +175,12 @@ class RemindersService: ObservableObject {
             components.calendar = Calendar.current
             reminder.dueDateComponents = components
 
-            print("Setting due date to: \(dueDate)")
-            print("DateComponents: \(components)")
+            log("  DateComponents: year=\(components.year ?? 0) month=\(components.month ?? 0) day=\(components.day ?? 0) hour=\(components.hour ?? 0) minute=\(components.minute ?? 0) tz=\(components.timeZone?.identifier ?? "nil")")
         }
 
         do {
             try eventStore.save(reminder, commit: true)
-            print("Saved reminder: \(reminder.title ?? "untitled")")
+            log("  Successfully saved reminder")
 
             // Reload the reminder to get fresh data
             eventStore.reset()
@@ -155,9 +188,10 @@ class RemindersService: ObservableObject {
                 throw RemindersError.saveFailed("Could not reload reminder after save")
             }
 
+            log("  Reloaded reminder - due date now: \(updatedReminder.dueDateComponents?.date ?? Date.distantPast)")
             return updatedReminder
         } catch {
-            print("Save failed: \(error)")
+            log("  Save failed: \(error)")
             throw RemindersError.saveFailed(error.localizedDescription)
         }
     }
