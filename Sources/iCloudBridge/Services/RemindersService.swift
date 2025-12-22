@@ -124,12 +124,24 @@ class RemindersService: ObservableObject {
         reminder.priority = priority ?? 0
 
         if let dueDate = dueDate {
-            var components = Calendar.current.dateComponents(
-                [.year, .month, .day, .hour, .minute, .second, .timeZone],
-                from: dueDate
-            )
-            components.calendar = Calendar.current
-            reminder.dueDateComponents = components
+            // Default to timed reminders for new reminders when time is not midnight
+            let calendar = Calendar.current
+            let components = calendar.dateComponents([.hour, .minute], from: dueDate)
+            let isMidnight = components.hour == 0 && components.minute == 0
+
+            var dueDateComponents: DateComponents
+            if isMidnight {
+                // Midnight = likely intended as all-day
+                dueDateComponents = calendar.dateComponents([.year, .month, .day], from: dueDate)
+                log("Creating ALL-DAY reminder: \(title)")
+            } else {
+                // Has specific time
+                dueDateComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: dueDate)
+                log("Creating TIMED reminder: \(title)")
+            }
+
+            dueDateComponents.calendar = calendar
+            reminder.dueDateComponents = dueDateComponents
         }
 
         do {
@@ -165,17 +177,33 @@ class RemindersService: ObservableObject {
         if let dueDate = dueDate {
             log("  Setting due date to: \(dueDate)")
 
+            // Check if existing reminder has time components or is all-day
+            let existingComponents = reminder.dueDateComponents
+            let hasTime = existingComponents?.hour != nil || existingComponents?.minute != nil
+            log("  Existing reminder has time component: \(hasTime)")
+
             // Clear existing due date first to ensure clean update
             reminder.dueDateComponents = nil
 
-            var components = Calendar.current.dateComponents(
-                [.year, .month, .day, .hour, .minute, .second, .timeZone],
-                from: dueDate
-            )
+            var components: DateComponents
+            if hasTime {
+                // Timed reminder - include hour and minute
+                components = Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .timeZone],
+                    from: dueDate
+                )
+                log("  Setting as TIMED reminder: year=\(components.year ?? 0) month=\(components.month ?? 0) day=\(components.day ?? 0) hour=\(components.hour ?? 0) minute=\(components.minute ?? 0) tz=\(components.timeZone?.identifier ?? "nil")")
+            } else {
+                // All-day reminder - only date components, no time
+                components = Calendar.current.dateComponents(
+                    [.year, .month, .day],
+                    from: dueDate
+                )
+                log("  Setting as ALL-DAY reminder: year=\(components.year ?? 0) month=\(components.month ?? 0) day=\(components.day ?? 0)")
+            }
+
             components.calendar = Calendar.current
             reminder.dueDateComponents = components
-
-            log("  DateComponents: year=\(components.year ?? 0) month=\(components.month ?? 0) day=\(components.day ?? 0) hour=\(components.hour ?? 0) minute=\(components.minute ?? 0) tz=\(components.timeZone?.identifier ?? "nil")")
         }
 
         do {
