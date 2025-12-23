@@ -185,51 +185,49 @@ class RemindersService: ObservableObject {
         if let dueDate = dueDate {
             log("  Setting due date to: \(dueDate)")
 
-            // Check if existing reminder has time components or is all-day
+            // Based on working GitHub examples and user testing, we need to:
+            // 1. Remove ALL alarms first (they reference the old date)
+            // 2. Clear start and due date components
+            // 3. Save
+            // 4. Set new date components
+            // 5. Save again
+
             let existingComponents = reminder.dueDateComponents
             let hadExistingDate = existingComponents != nil
-            let hasTime = existingComponents?.hour != nil || existingComponents?.minute != nil
-            log("  Existing reminder had date: \(hadExistingDate), had time component: \(hasTime)")
+            log("  Existing reminder had date: \(hadExistingDate)")
 
-            // CRITICAL: To update an existing due date, we must:
-            // 1. Clear both start and due date components
-            // 2. Save that change
-            // 3. Then set new components
-            // 4. Save again
-            // This mimics manually clearing the date in Reminders app first
-
-            if hadExistingDate {
-                log("  Clearing existing date components first...")
-                reminder.startDateComponents = nil
-                reminder.dueDateComponents = nil
-
-                // Save the cleared state
-                do {
-                    try eventStore.save(reminder, commit: true)
-                    log("  Saved cleared date state")
-                } catch {
-                    log("  Failed to save cleared state: \(error)")
-                    throw RemindersError.saveFailed("Failed to clear existing date: \(error.localizedDescription)")
+            // Remove all existing alarms
+            if let alarms = reminder.alarms, !alarms.isEmpty {
+                log("  Removing \(alarms.count) existing alarm(s)")
+                for alarm in alarms {
+                    reminder.removeAlarm(alarm)
                 }
-
-                // Reload the reminder to get fresh state
-                eventStore.reset()
-                guard let clearedReminder = eventStore.calendarItem(withIdentifier: reminder.calendarItemIdentifier) as? EKReminder else {
-                    throw RemindersError.saveFailed("Could not reload reminder after clearing date")
-                }
-
-                // Update our reference to the cleared reminder
-                reminder.refresh()
             }
 
-            // Now set the new date components
-            // Determine if this should be timed or all-day based on the provided date
+            // Clear date components
+            log("  Clearing date components...")
+            reminder.startDateComponents = nil
+            reminder.dueDateComponents = nil
+
+            // Save the cleared state
+            do {
+                try eventStore.save(reminder, commit: true)
+                log("  Saved cleared state")
+            } catch {
+                log("  Failed to save cleared state: \(error)")
+                throw RemindersError.saveFailed("Failed to clear existing date: \(error.localizedDescription)")
+            }
+
+            // Reset and reload
+            eventStore.reset()
+            guard let clearedReminder = eventStore.calendarItem(withIdentifier: reminder.calendarItemIdentifier) as? EKReminder else {
+                throw RemindersError.saveFailed("Could not reload reminder after clearing date")
+            }
+
+            // Work with the reloaded reminder
             let calendar = Calendar.current
             let timeComponents = calendar.dateComponents([.hour, .minute], from: dueDate)
             let isMidnight = timeComponents.hour == 0 && timeComponents.minute == 0
-
-            // If the new date has a specific time (not midnight), make it timed
-            // Otherwise make it all-day
             let shouldBeTimed = !isMidnight
 
             log("  Setting new date as \(shouldBeTimed ? "TIMED" : "ALL-DAY") (midnight=\(isMidnight))")
@@ -256,10 +254,23 @@ class RemindersService: ObservableObject {
             startComponents.calendar = calendar
             dueComponents.calendar = calendar
 
-            reminder.startDateComponents = startComponents
-            reminder.dueDateComponents = dueComponents
+            clearedReminder.startDateComponents = startComponents
+            clearedReminder.dueDateComponents = dueComponents
+
+            // Save the new date
+            do {
+                try eventStore.save(clearedReminder, commit: true)
+                log("  Saved new date components")
+            } catch {
+                log("  Failed to save new date: \(error)")
+                throw RemindersError.saveFailed("Failed to save new date: \(error.localizedDescription)")
+            }
+
+            // Update the original reminder reference and return the cleared one with new date
+            return clearedReminder
         }
 
+        // If we didn't update the due date, save any other changes
         do {
             try eventStore.save(reminder, commit: true)
             log("  Successfully saved reminder")
@@ -270,7 +281,7 @@ class RemindersService: ObservableObject {
                 throw RemindersError.saveFailed("Could not reload reminder after save")
             }
 
-            log("  Reloaded reminder - due date now: \(updatedReminder.dueDateComponents?.date ?? Date.distantPast)")
+            log("  Reloaded reminder")
             return updatedReminder
         } catch {
             log("  Save failed: \(error)")
