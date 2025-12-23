@@ -8,3 +8,4 @@ DerivedData/
 *.app
 __pycache__/
 *.pyc
+.worktrees/
