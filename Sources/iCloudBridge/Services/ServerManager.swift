@@ -4,11 +4,20 @@ import Foundation
 actor ServerManager {
     private var app: Application?
     private let remindersService: RemindersService
+    private let photosService: PhotosService
     private let selectedListIds: () -> [String]
+    private let selectedAlbumIds: () -> [String]
 
-    init(remindersService: RemindersService, selectedListIds: @escaping () -> [String]) {
+    init(
+        remindersService: RemindersService,
+        photosService: PhotosService,
+        selectedListIds: @escaping () -> [String],
+        selectedAlbumIds: @escaping () -> [String]
+    ) {
         self.remindersService = remindersService
+        self.photosService = photosService
         self.selectedListIds = selectedListIds
+        self.selectedAlbumIds = selectedAlbumIds
     }
 
     var isRunning: Bool {
@@ -36,7 +45,13 @@ actor ServerManager {
         decoder.dateDecodingStrategy = .iso8601
         ContentConfiguration.global.use(decoder: decoder, for: .json)
 
-        try configureRoutes(newApp, remindersService: remindersService, selectedListIds: selectedListIds)
+        try configureRoutes(
+            newApp,
+            remindersService: remindersService,
+            photosService: photosService,
+            selectedListIds: selectedListIds,
+            selectedAlbumIds: selectedAlbumIds
+        )
 
         self.app = newApp
 

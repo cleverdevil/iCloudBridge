@@ -61,7 +61,9 @@ struct iCloudBridgeApp: App {
             if serverManager == nil {
                 serverManager = ServerManager(
                     remindersService: appState.remindersService,
-                    selectedListIds: { appState.selectedLists }
+                    photosService: appState.photosService,
+                    selectedListIds: { appState.selectedLists },
+                    selectedAlbumIds: { appState.selectedAlbums }
                 )
             } else {
                 await serverManager?.stop()
