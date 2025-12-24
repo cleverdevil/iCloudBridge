@@ -153,9 +153,18 @@ struct MenuBarContentView: View {
             case .running(let port):
                 Label("Running on port \(port)", systemImage: "circle.fill")
                     .foregroundColor(.green)
-                Text("\(appState.selectedListIds.count) lists selected")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+
+                if !appState.selectedListIds.isEmpty {
+                    Text("\(appState.selectedListIds.count) lists selected")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                if !appState.selectedAlbumIds.isEmpty {
+                    Text("\(appState.selectedAlbumIds.count) albums selected")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             case .error(let message):
                 Label("Error", systemImage: "circle.fill")
                     .foregroundColor(.red)
