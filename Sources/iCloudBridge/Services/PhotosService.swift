@@ -37,6 +37,10 @@ class PhotosService: ObservableObject {
 
     init() {
         updateAuthorizationStatus()
+        // If already authorized, load albums immediately
+        if authorizationStatus == .authorized {
+            loadAlbums()
+        }
     }
 
     func updateAuthorizationStatus() {
