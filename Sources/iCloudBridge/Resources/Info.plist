@@ -4,6 +4,8 @@
 <dict>
     <key>NSRemindersUsageDescription</key>
     <string>iCloud Bridge needs access to Reminders to expose them via the REST API.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>iCloud Bridge needs access to Photos to expose albums via the REST API.</string>
     <key>LSUIElement</key>
     <true/>
 </dict>
