@@ -61,24 +61,46 @@ class PhotosService: ObservableObject {
     func loadAlbums() {
         allAlbums.removeAll()
 
-        // Fetch user albums
+        // Fetch user-created albums
         let userAlbums = PHAssetCollection.fetchAssetCollections(
             with: .album,
-            subtype: .any,
+            subtype: .albumRegular,
             options: nil
         )
         userAlbums.enumerateObjects { collection, _, _ in
             self.allAlbums.append(collection)
         }
 
-        // Fetch smart albums
-        let smartAlbums = PHAssetCollection.fetchAssetCollections(
-            with: .smartAlbum,
-            subtype: .any,
-            options: nil
-        )
-        smartAlbums.enumerateObjects { collection, _, _ in
-            self.allAlbums.append(collection)
+        // Fetch only useful smart albums (not auto-generated date clusters)
+        let usefulSmartAlbumSubtypes: [PHAssetCollectionSubtype] = [
+            .smartAlbumFavorites,
+            .smartAlbumRecentlyAdded,
+            .smartAlbumVideos,
+            .smartAlbumSelfPortraits,
+            .smartAlbumPanoramas,
+            .smartAlbumLivePhotos,
+            .smartAlbumScreenshots,
+            .smartAlbumBursts,
+            .smartAlbumSlomoVideos,
+            .smartAlbumTimelapses,
+            .smartAlbumDepthEffect,
+            .smartAlbumRAW,
+            .smartAlbumCinematic
+        ]
+
+        for subtype in usefulSmartAlbumSubtypes {
+            let albums = PHAssetCollection.fetchAssetCollections(
+                with: .smartAlbum,
+                subtype: subtype,
+                options: nil
+            )
+            albums.enumerateObjects { collection, _, _ in
+                // Only include non-empty albums
+                let assetCount = PHAsset.fetchAssets(in: collection, options: nil).count
+                if assetCount > 0 {
+                    self.allAlbums.append(collection)
+                }
+            }
         }
     }
 
