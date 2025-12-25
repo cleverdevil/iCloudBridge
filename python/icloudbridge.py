@@ -92,6 +92,76 @@ class Reminder:
         )
 
 
+@dataclass
+class Album:
+    """Represents a photo album."""
+    id: str
+    title: str
+    album_type: str
+    photo_count: int
+    video_count: int
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Album:
+        start_date = None
+        if data.get("startDate"):
+            start_date = _parse_iso_date(data["startDate"])
+
+        end_date = None
+        if data.get("endDate"):
+            end_date = _parse_iso_date(data["endDate"])
+
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            album_type=data["albumType"],
+            photo_count=data["photoCount"],
+            video_count=data["videoCount"],
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+
+@dataclass
+class Photo:
+    """Represents a single photo."""
+    id: str
+    album_id: str
+    media_type: str
+    creation_date: datetime
+    modification_date: Optional[datetime]
+    width: int
+    height: int
+    is_favorite: bool
+    is_hidden: bool
+    filename: Optional[str]
+    file_size: Optional[int]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Photo:
+        creation_date = _parse_iso_date(data["creationDate"])
+
+        modification_date = None
+        if data.get("modificationDate"):
+            modification_date = _parse_iso_date(data["modificationDate"])
+
+        return cls(
+            id=data["id"],
+            album_id=data["albumId"],
+            media_type=data["mediaType"],
+            creation_date=creation_date,
+            modification_date=modification_date,
+            width=data["width"],
+            height=data["height"],
+            is_favorite=data["isFavorite"],
+            is_hidden=data["isHidden"],
+            filename=data.get("filename"),
+            file_size=data.get("fileSize"),
+        )
+
+
 class iCloudBridgeError(Exception):
     """Base exception for iCloud Bridge errors."""
     pass
@@ -375,6 +445,228 @@ class iCloudBridge:
         """
         return self.update_reminder(reminder_id, is_completed=False)
 
+    # Album operations
+
+    def get_albums(self) -> list[Album]:
+        """
+        Get all available photo albums.
+
+        Returns:
+            list[Album]: All albums configured in iCloud Bridge
+        """
+        data = self._request("GET", "/albums")
+        return [Album.from_dict(item) for item in data]
+
+    def get_album(self, album_id: str) -> Album:
+        """
+        Get a specific album by ID.
+
+        Args:
+            album_id: The album identifier
+
+        Returns:
+            Album: The requested album
+
+        Raises:
+            NotFoundError: If the album is not found
+        """
+        data = self._request("GET", f"/albums/{urllib.parse.quote(album_id)}")
+        return Album.from_dict(data)
+
+    def get_photos(
+        self,
+        album_id: str,
+        limit: int = 100,
+        offset: int = 0,
+        sort: str = "album"
+    ) -> tuple[list[Photo], int]:
+        """
+        Get photos in a specific album.
+
+        Args:
+            album_id: The album identifier
+            limit: Number of photos per page (default: 100)
+            offset: Number of photos to skip (default: 0)
+            sort: Sort order - "album", "date-asc", or "date-desc" (default: "album")
+
+        Returns:
+            tuple[list[Photo], int]: Photos and total count
+
+        Raises:
+            NotFoundError: If the album is not found
+        """
+        path = f"/albums/{urllib.parse.quote(album_id)}/photos"
+        params = []
+        if limit != 100:
+            params.append(f"limit={limit}")
+        if offset != 0:
+            params.append(f"offset={offset}")
+        if sort != "album":
+            params.append(f"sort={sort}")
+
+        if params:
+            path += "?" + "&".join(params)
+
+        data = self._request("GET", path)
+        photos = [Photo.from_dict(item) for item in data["photos"]]
+        return photos, data["total"]
+
+    def get_photo(self, photo_id: str) -> Photo:
+        """
+        Get a specific photo by ID.
+
+        Args:
+            photo_id: The photo identifier
+
+        Returns:
+            Photo: The requested photo
+
+        Raises:
+            NotFoundError: If the photo is not found
+        """
+        data = self._request("GET", f"/photos/{urllib.parse.quote(photo_id)}")
+        return Photo.from_dict(data)
+
+    def get_thumbnail(self, photo_id: str, size: str = "medium") -> bytes:
+        """
+        Get a thumbnail image.
+
+        Args:
+            photo_id: The photo identifier
+            size: Thumbnail size - "small" (200px) or "medium" (800px)
+
+        Returns:
+            bytes: JPEG image data
+
+        Raises:
+            NotFoundError: If the photo is not found
+        """
+        path = f"/photos/{urllib.parse.quote(photo_id)}/thumbnail"
+        if size != "medium":
+            path += f"?size={size}"
+
+        url = f"{self.base_url}{path}"
+        request = urllib.request.Request(url)
+
+        try:
+            with urllib.request.urlopen(request) as response:
+                return response.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NotFoundError(f"Photo not found: {photo_id}")
+            raise APIError(e.code, str(e))
+        except urllib.error.URLError as e:
+            raise iCloudBridgeError(f"Connection failed: {e.reason}")
+
+    def get_image(self, photo_id: str, wait: bool = False, max_retries: int = 10) -> bytes:
+        """
+        Get full-resolution image.
+
+        Args:
+            photo_id: The photo identifier
+            wait: If True, block until download completes; if False, poll with retries
+            max_retries: Maximum retry attempts for non-blocking mode (default: 10)
+
+        Returns:
+            bytes: Image data
+
+        Raises:
+            NotFoundError: If the photo is not found
+            iCloudBridgeError: If download fails or times out
+        """
+        import time
+
+        path = f"/photos/{urllib.parse.quote(photo_id)}/image"
+        if wait:
+            path += "?wait=true"
+
+        url = f"{self.base_url}{path}"
+
+        for attempt in range(max_retries if not wait else 1):
+            request = urllib.request.Request(url)
+
+            try:
+                with urllib.request.urlopen(request) as response:
+                    return response.read()
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    raise NotFoundError(f"Photo not found: {photo_id}")
+                elif e.code == 202:
+                    # Download pending, retry
+                    if wait:
+                        raise iCloudBridgeError("Image download pending despite wait=true")
+
+                    # Parse retry-after header
+                    retry_after = int(e.headers.get("Retry-After", "5"))
+
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_after)
+                        continue
+                    else:
+                        raise iCloudBridgeError(f"Image download timed out after {max_retries} retries")
+                else:
+                    raise APIError(e.code, str(e))
+            except urllib.error.URLError as e:
+                raise iCloudBridgeError(f"Connection failed: {e.reason}")
+
+        raise iCloudBridgeError("Image download failed")
+
+    def get_video(self, photo_id: str) -> bytes:
+        """
+        Get video file for a video or Live Photo.
+
+        Args:
+            photo_id: The photo identifier
+
+        Returns:
+            bytes: Video data
+
+        Raises:
+            NotFoundError: If the photo is not found
+            APIError: If the photo is not a video
+        """
+        path = f"/photos/{urllib.parse.quote(photo_id)}/video"
+        url = f"{self.base_url}{path}"
+        request = urllib.request.Request(url)
+
+        try:
+            with urllib.request.urlopen(request) as response:
+                return response.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NotFoundError(f"Photo not found: {photo_id}")
+            raise APIError(e.code, str(e))
+        except urllib.error.URLError as e:
+            raise iCloudBridgeError(f"Connection failed: {e.reason}")
+
+    def get_live_video(self, photo_id: str) -> bytes:
+        """
+        Get motion video component for a Live Photo.
+
+        Args:
+            photo_id: The photo identifier (must be a Live Photo)
+
+        Returns:
+            bytes: Video data
+
+        Raises:
+            NotFoundError: If the photo is not found
+            APIError: If the photo is not a Live Photo
+        """
+        path = f"/photos/{urllib.parse.quote(photo_id)}/live-video"
+        url = f"{self.base_url}{path}"
+        request = urllib.request.Request(url)
+
+        try:
+            with urllib.request.urlopen(request) as response:
+                return response.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NotFoundError(f"Photo not found: {photo_id}")
+            raise APIError(e.code, str(e))
+        except urllib.error.URLError as e:
+            raise iCloudBridgeError(f"Connection failed: {e.reason}")
+
 
 # Convenience function for quick access
 def connect(host: str = "localhost", port: int = 31337) -> iCloudBridge:
@@ -399,22 +691,30 @@ if __name__ == "__main__":
         health = client.health()
         print(f"Server status: {health}")
 
+        # Test Reminders
         lists = client.get_lists()
         print(f"\nFound {len(lists)} reminder lists:")
         for lst in lists:
             print(f"  - {lst.title} ({lst.reminder_count} reminders)")
 
         if lists:
-            # Get incomplete reminders (default)
             reminders = client.get_reminders(lists[0].id)
             print(f"\nIncomplete reminders in '{lists[0].title}':")
             for r in reminders:
                 status = "[x]" if r.is_completed else "[ ]"
                 print(f"  {status} {r.title}")
 
-            # Get all reminders including completed
-            all_reminders = client.get_reminders(lists[0].id, include_completed=True)
-            print(f"\nAll reminders (including completed): {len(all_reminders)} total")
+        # Test Photos
+        albums = client.get_albums()
+        print(f"\nFound {len(albums)} photo albums:")
+        for album in albums:
+            print(f"  - {album.title} ({album.photo_count} photos, {album.video_count} videos)")
+
+        if albums:
+            photos, total = client.get_photos(albums[0].id, limit=5)
+            print(f"\nFirst 5 photos in '{albums[0].title}' (total: {total}):")
+            for photo in photos:
+                print(f"  - {photo.filename or photo.id} ({photo.width}x{photo.height}, {photo.media_type})")
 
     except iCloudBridgeError as e:
         print(f"Error: {e}")
