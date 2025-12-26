@@ -58,17 +58,48 @@ class PhotosService: ObservableObject {
         return status == .authorized
     }
 
+    // Check if album title looks like an auto-generated date (e.g., "Nov 12, 2011", "December 2015")
+    private func isDateLikeTitle(_ title: String?) -> Bool {
+        guard let title = title else { return true }
+
+        // Common date patterns from iPhoto imports
+        let datePatterns = [
+            // "Nov 12, 2011" or "November 12, 2011"
+            "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \\d{1,2}, \\d{4}$",
+            // "December 2015" or "Dec 2015"
+            "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \\d{4}$",
+            // "2015-12-25" or "2015/12/25"
+            "^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}$",
+            // "12/25/2015"
+            "^\\d{1,2}/\\d{1,2}/\\d{4}$",
+            // Just a year "2015"
+            "^\\d{4}$"
+        ]
+
+        for pattern in datePatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                let range = NSRange(title.startIndex..., in: title)
+                if regex.firstMatch(in: title, options: [], range: range) != nil {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     func loadAlbums() {
         allAlbums.removeAll()
 
-        // Fetch user-created albums
+        // Fetch user-created albums, filtering out date-like titles (iPhoto imports)
         let userAlbums = PHAssetCollection.fetchAssetCollections(
             with: .album,
             subtype: .albumRegular,
             options: nil
         )
         userAlbums.enumerateObjects { collection, _, _ in
-            self.allAlbums.append(collection)
+            if !self.isDateLikeTitle(collection.localizedTitle) {
+                self.allAlbums.append(collection)
+            }
         }
 
         // Fetch only useful smart albums (not auto-generated date clusters)
