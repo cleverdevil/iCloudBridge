@@ -30,10 +30,16 @@ class PhotosService: ObservableObject {
     private let imageManager = PHCachingImageManager()
 
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
-    @Published var allAlbums: [PHAssetCollection] = []
+    @Published var albumHierarchy: AlbumHierarchy = AlbumHierarchy()
 
     // Track pending downloads
     private var pendingDownloads: [String: Bool] = [:]
+
+    private func makeAlbumItem(from collection: PHAssetCollection) -> AlbumItem? {
+        let count = PHAsset.fetchAssets(in: collection, options: nil).count
+        guard count > 0 else { return nil }
+        return AlbumItem(collection: collection, photoCount: count)
+    }
 
     init() {
         updateAuthorizationStatus()
@@ -59,23 +65,51 @@ class PhotosService: ObservableObject {
     }
 
     func loadAlbums() {
-        allAlbums.removeAll()
+        var hierarchy = AlbumHierarchy()
 
-        // Fetch ONLY top-level user collections (what Photos app shows in Albums view)
-        // This excludes albums nested inside folders
+        // 1. Fetch top-level user collections
         let topLevelCollections = PHCollectionList.fetchTopLevelUserCollections(with: nil)
 
         topLevelCollections.enumerateObjects { collection, _, _ in
-            // Only include PHAssetCollection (albums), not PHCollectionList (folders)
             if let album = collection as? PHAssetCollection {
-                let assetCount = PHAsset.fetchAssets(in: album, options: nil).count
-                if assetCount > 0 {
-                    self.allAlbums.append(album)
+                // Top-level album
+                if let item = self.makeAlbumItem(from: album) {
+                    hierarchy.myAlbums.append(item)
+                }
+            } else if let folder = collection as? PHCollectionList {
+                // Folder - fetch its contents
+                var folderAlbums: [AlbumItem] = []
+                let contents = PHCollection.fetchCollections(in: folder, options: nil)
+                contents.enumerateObjects { nested, _, _ in
+                    if let nestedAlbum = nested as? PHAssetCollection {
+                        if let item = self.makeAlbumItem(from: nestedAlbum) {
+                            folderAlbums.append(item)
+                        }
+                    }
+                }
+                if !folderAlbums.isEmpty {
+                    folderAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+                    hierarchy.folders.append(FolderItem(
+                        collectionList: folder,
+                        albums: folderAlbums
+                    ))
                 }
             }
         }
 
-        // Fetch only useful smart albums
+        // 2. Fetch shared albums
+        let sharedAlbums = PHAssetCollection.fetchAssetCollections(
+            with: .album,
+            subtype: .albumCloudShared,
+            options: nil
+        )
+        sharedAlbums.enumerateObjects { collection, _, _ in
+            if let item = self.makeAlbumItem(from: collection) {
+                hierarchy.sharedAlbums.append(item)
+            }
+        }
+
+        // 3. Fetch smart albums
         let usefulSmartAlbumSubtypes: [PHAssetCollectionSubtype] = [
             .smartAlbumFavorites,
             .smartAlbumRecentlyAdded,
@@ -99,23 +133,29 @@ class PhotosService: ObservableObject {
                 options: nil
             )
             albums.enumerateObjects { collection, _, _ in
-                // Only include non-empty albums
-                let assetCount = PHAsset.fetchAssets(in: collection, options: nil).count
-                if assetCount > 0 {
-                    self.allAlbums.append(collection)
+                if let item = self.makeAlbumItem(from: collection) {
+                    hierarchy.smartAlbums.append(item)
                 }
             }
         }
+
+        // 4. Sort all categories alphabetically
+        hierarchy.myAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        hierarchy.folders.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        hierarchy.sharedAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        hierarchy.smartAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+
+        self.albumHierarchy = hierarchy
     }
 
     // MARK: - Album Operations
 
     func getAlbums(ids: [String]) -> [PHAssetCollection] {
-        return allAlbums.filter { ids.contains($0.localIdentifier) }
+        return albumHierarchy.allSelectableAlbums.filter { ids.contains($0.localIdentifier) }
     }
 
     func getAlbum(id: String) -> PHAssetCollection? {
-        return allAlbums.first { $0.localIdentifier == id }
+        return albumHierarchy.allSelectableAlbums.first { $0.localIdentifier == id }
     }
 
     func getAssets(in album: PHAssetCollection, limit: Int = 100, offset: Int = 0, sort: String = "album") -> (assets: [PHAsset], total: Int) {
