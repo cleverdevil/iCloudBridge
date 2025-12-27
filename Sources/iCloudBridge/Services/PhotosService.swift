@@ -398,7 +398,14 @@ class PhotosService: ObservableObject {
     // MARK: - DTO Conversions
 
     func toDTO(_ album: PHAssetCollection, photoCount: Int, videoCount: Int, dateRange: (Date?, Date?)) -> AlbumDTO {
-        let albumType: AlbumDTO.AlbumType = album.assetCollectionType == .album ? .user : .smart
+        let albumType: AlbumDTO.AlbumType
+        if album.assetCollectionSubtype == .albumCloudShared {
+            albumType = .shared
+        } else if album.assetCollectionType == .smartAlbum {
+            albumType = .smart
+        } else {
+            albumType = .user
+        }
 
         return AlbumDTO(
             id: album.localIdentifier,
