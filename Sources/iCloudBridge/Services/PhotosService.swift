@@ -41,12 +41,21 @@ class PhotosService: ObservableObject {
         return AlbumItem(collection: collection, photoCount: count)
     }
 
-    /// Checks if an album title matches iPhoto date event patterns like "Apr 12, 2012" or "Jan 6, 2014 (1)"
-    private func isDateAlbumTitle(_ title: String) -> Bool {
-        // Pattern: "Mon DD, YYYY" with optional " (N)" suffix
+    /// Checks if an album title matches legacy iPhoto patterns that should be filtered from folders
+    private func isLegacyAlbumTitle(_ title: String) -> Bool {
+        // Date pattern: "Mon DD, YYYY" with optional " (N)" suffix
         // Examples: "Apr 12, 2012", "Jan 6, 2014 (1)", "Dec 25, 2011 (2)"
-        let pattern = "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{1,2}, \\d{4}( \\(\\d+\\))?$"
-        return title.range(of: pattern, options: .regularExpression) != nil
+        let datePattern = "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{1,2}, \\d{4}( \\(\\d+\\))?$"
+        if title.range(of: datePattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        // Photo Stream albums: "Apr 2012 Photo Stream", etc.
+        if title.contains("Photo Stream") {
+            return true
+        }
+
+        return false
     }
 
     init() {
@@ -90,9 +99,9 @@ class PhotosService: ObservableObject {
                 let contents = PHCollection.fetchCollections(in: folder, options: nil)
                 contents.enumerateObjects { nested, _, _ in
                     if let nestedAlbum = nested as? PHAssetCollection {
-                        // Filter out iPhoto date event albums (e.g., "Apr 12, 2012")
+                        // Filter out legacy iPhoto albums (date events, Photo Stream)
                         let title = nestedAlbum.localizedTitle ?? ""
-                        guard !self.isDateAlbumTitle(title) else { return }
+                        guard !self.isLegacyAlbumTitle(title) else { return }
 
                         if let item = self.makeAlbumItem(from: nestedAlbum) {
                             folderAlbums.append(item)
