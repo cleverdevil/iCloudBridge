@@ -17,6 +17,52 @@ enum ServerStatus: Equatable {
 class AppState: ObservableObject {
     @Published var selectedListIds: Set<String> = []
     @Published var selectedAlbumIds: Set<String> = []
+
+    @AppStorage("photosCollapsedSections") private var collapsedSectionsData: Data = Data()
+    @AppStorage("photosExpandedFolders") private var expandedFoldersData: Data = Data()
+
+    var collapsedSections: Set<String> {
+        get {
+            (try? JSONDecoder().decode(Set<String>.self, from: collapsedSectionsData)) ?? []
+        }
+        set {
+            collapsedSectionsData = (try? JSONEncoder().encode(newValue)) ?? Data()
+        }
+    }
+
+    var expandedFolders: Set<String> {
+        get {
+            (try? JSONDecoder().decode(Set<String>.self, from: expandedFoldersData)) ?? []
+        }
+        set {
+            expandedFoldersData = (try? JSONEncoder().encode(newValue)) ?? Data()
+        }
+    }
+
+    func toggleSection(_ section: String) {
+        if collapsedSections.contains(section) {
+            collapsedSections.remove(section)
+        } else {
+            collapsedSections.insert(section)
+        }
+    }
+
+    func isSectionExpanded(_ section: String) -> Bool {
+        !collapsedSections.contains(section)
+    }
+
+    func toggleFolderExpansion(_ folderId: String) {
+        if expandedFolders.contains(folderId) {
+            expandedFolders.remove(folderId)
+        } else {
+            expandedFolders.insert(folderId)
+        }
+    }
+
+    func isFolderExpanded(_ folderId: String) -> Bool {
+        expandedFolders.contains(folderId)
+    }
+
     @Published var serverPort: Int = 31337
     @Published var serverStatus: ServerStatus = .stopped
     @Published var showingSettings: Bool = false
