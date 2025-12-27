@@ -55,6 +55,11 @@ class PhotosService: ObservableObject {
             return true
         }
 
+        // Roll albums: "Roll 1", "Roll 10", "Roll 83", etc.
+        if title.range(of: "^Roll \\d+$", options: .regularExpression) != nil {
+            return true
+        }
+
         return false
     }
 
