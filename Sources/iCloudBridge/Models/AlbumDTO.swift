@@ -13,5 +13,6 @@ struct AlbumDTO: Content {
     enum AlbumType: String, Codable {
         case user
         case smart
+        case shared
     }
 }
