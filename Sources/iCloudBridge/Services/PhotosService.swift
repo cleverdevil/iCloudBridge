@@ -148,6 +148,12 @@ class PhotosService: ObservableObject {
         self.albumHierarchy = hierarchy
     }
 
+    func toggleFolder(_ folderId: String) {
+        if let index = albumHierarchy.folders.firstIndex(where: { $0.id == folderId }) {
+            albumHierarchy.folders[index].isExpanded.toggle()
+        }
+    }
+
     // MARK: - Album Operations
 
     func getAlbums(ids: [String]) -> [PHAssetCollection] {
