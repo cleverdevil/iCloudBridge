@@ -41,6 +41,14 @@ class PhotosService: ObservableObject {
         return AlbumItem(collection: collection, photoCount: count)
     }
 
+    /// Checks if an album title matches iPhoto date event patterns like "Apr 12, 2012" or "Jan 6, 2014 (1)"
+    private func isDateAlbumTitle(_ title: String) -> Bool {
+        // Pattern: "Mon DD, YYYY" with optional " (N)" suffix
+        // Examples: "Apr 12, 2012", "Jan 6, 2014 (1)", "Dec 25, 2011 (2)"
+        let pattern = "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{1,2}, \\d{4}( \\(\\d+\\))?$"
+        return title.range(of: pattern, options: .regularExpression) != nil
+    }
+
     init() {
         updateAuthorizationStatus()
         // If already authorized, load albums immediately
@@ -82,6 +90,10 @@ class PhotosService: ObservableObject {
                 let contents = PHCollection.fetchCollections(in: folder, options: nil)
                 contents.enumerateObjects { nested, _, _ in
                     if let nestedAlbum = nested as? PHAssetCollection {
+                        // Filter out iPhoto date event albums (e.g., "Apr 12, 2012")
+                        let title = nestedAlbum.localizedTitle ?? ""
+                        guard !self.isDateAlbumTitle(title) else { return }
+
                         if let item = self.makeAlbumItem(from: nestedAlbum) {
                             folderAlbums.append(item)
                         }
