@@ -78,30 +78,112 @@ struct PhotosSettingsView: View {
                 .foregroundColor(.secondary)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(appState.photosService.allAlbums, id: \.localIdentifier) { album in
-                        Toggle(isOn: Binding(
-                            get: { appState.isAlbumSelected(album.localIdentifier) },
-                            set: { _ in appState.toggleAlbum(album.localIdentifier) }
-                        )) {
-                            HStack {
-                                Text(album.localizedTitle ?? "Untitled")
-                                Spacer()
-                                Text(getAlbumType(album))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                VStack(alignment: .leading, spacing: 0) {
+                    // My Albums Section
+                    sectionHeader("My Albums", count: appState.photosService.albumHierarchy.myAlbumsCount, section: "myAlbums")
+                    if appState.isSectionExpanded("myAlbums") {
+                        myAlbumsContent
+                    }
+
+                    // Shared Albums Section
+                    if !appState.photosService.albumHierarchy.sharedAlbums.isEmpty {
+                        sectionHeader("Shared Albums", count: appState.photosService.albumHierarchy.sharedAlbums.count, section: "sharedAlbums")
+                        if appState.isSectionExpanded("sharedAlbums") {
+                            albumList(appState.photosService.albumHierarchy.sharedAlbums, indent: 1)
                         }
-                        .toggleStyle(.checkbox)
+                    }
+
+                    // Smart Albums Section
+                    sectionHeader("Smart Albums", count: appState.photosService.albumHierarchy.smartAlbums.count, section: "smartAlbums")
+                    if appState.isSectionExpanded("smartAlbums") {
+                        albumList(appState.photosService.albumHierarchy.smartAlbums, indent: 1)
                     }
                 }
             }
-            .frame(maxHeight: 300)
+            .frame(maxHeight: 400)
         }
     }
 
-    private func getAlbumType(_ album: PHAssetCollection) -> String {
-        return album.assetCollectionType == .album ? "User Album" : "Smart Album"
+    private func sectionHeader(_ title: String, count: Int, section: String) -> some View {
+        Button(action: { appState.toggleSection(section) }) {
+            HStack {
+                Image(systemName: appState.isSectionExpanded(section) ? "chevron.down" : "chevron.right")
+                    .font(.caption)
+                    .frame(width: 12)
+                Text(title)
+                    .fontWeight(.medium)
+                Text("(\(count))")
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .background(Color.secondary.opacity(0.1))
+    }
+
+    private var myAlbumsContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Top-level albums
+            albumList(appState.photosService.albumHierarchy.myAlbums, indent: 1)
+
+            // Folders
+            ForEach(appState.photosService.albumHierarchy.folders) { folder in
+                folderRow(folder)
+            }
+        }
+    }
+
+    private func folderRow(_ folder: FolderItem) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: { appState.toggleFolderExpansion(folder.id) }) {
+                HStack {
+                    Image(systemName: appState.isFolderExpanded(folder.id) ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .frame(width: 12)
+                    Image(systemName: "folder")
+                        .foregroundColor(.secondary)
+                    Text(folder.title)
+                    Text("(\(folder.albums.count))")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 4)
+            .padding(.leading, 20)
+
+            if appState.isFolderExpanded(folder.id) {
+                albumList(folder.albums, indent: 2)
+            }
+        }
+    }
+
+    private func albumList(_ albums: [AlbumItem], indent: Int) -> some View {
+        ForEach(albums) { album in
+            albumRow(album, indent: indent)
+        }
+    }
+
+    private func albumRow(_ album: AlbumItem, indent: Int) -> some View {
+        Toggle(isOn: Binding(
+            get: { appState.isAlbumSelected(album.id) },
+            set: { _ in appState.toggleAlbum(album.id) }
+        )) {
+            HStack {
+                Text(album.title)
+                Spacer()
+                Text("\(album.photoCount)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .toggleStyle(.checkbox)
+        .padding(.vertical, 2)
+        .padding(.leading, CGFloat(indent * 20))
     }
 
     private func openSystemSettings() {
