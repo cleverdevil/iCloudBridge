@@ -84,6 +84,15 @@ class AppState: ObservableObject {
         return !selectedListIds.isEmpty
     }
 
+    var hasAllPermissions: Bool {
+        remindersService.authorizationStatus == .fullAccess &&
+        photosService.authorizationStatus == .authorized
+    }
+
+    var hasSavedSettings: Bool {
+        !selectedListIds.isEmpty || !selectedAlbumIds.isEmpty
+    }
+
     var selectedLists: [String] {
         return Array(selectedListIds)
     }
