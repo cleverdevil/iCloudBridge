@@ -51,7 +51,7 @@ class PhotosService: ObservableObject {
         }
 
         // Photo Stream albums: "Apr 2012 Photo Stream", etc.
-        if title.contains("Photo Stream") {
+        if title.localizedCaseInsensitiveContains("Photo Stream") {
             return true
         }
 
