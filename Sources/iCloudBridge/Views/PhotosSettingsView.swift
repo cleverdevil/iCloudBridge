@@ -20,14 +20,8 @@ struct PhotosSettingsView: View {
         }
         .padding(20)
         .onAppear {
-            Task {
-                if appState.photosService.authorizationStatus != .authorized {
-                    _ = await appState.photosService.requestAccess()
-                } else {
-                    await MainActor.run {
-                        appState.photosService.loadAlbums()
-                    }
-                }
+            if appState.photosService.authorizationStatus == .authorized {
+                appState.photosService.loadAlbums()
             }
         }
     }

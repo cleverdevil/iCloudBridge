@@ -20,12 +20,8 @@ struct RemindersSettingsView: View {
         }
         .padding(20)
         .onAppear {
-            Task {
-                if appState.remindersService.authorizationStatus != .fullAccess {
-                    _ = await appState.remindersService.requestAccess()
-                } else {
-                    appState.remindersService.loadLists()
-                }
+            if appState.remindersService.authorizationStatus == .fullAccess {
+                appState.remindersService.loadLists()
             }
         }
     }
