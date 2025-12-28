@@ -6,59 +6,12 @@ struct RemindersSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Permission Status
-            permissionSection
-
-            Divider()
-
-            // Lists Selection
-            if appState.remindersService.authorizationStatus == .fullAccess {
-                listsSection
-            }
-
+            listsSection
             Spacer()
         }
         .padding(20)
         .onAppear {
-            if appState.remindersService.authorizationStatus == .fullAccess {
-                appState.remindersService.loadLists()
-            }
-        }
-    }
-
-    private var permissionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Reminders Access")
-                .font(.headline)
-
-            HStack {
-                switch appState.remindersService.authorizationStatus {
-                case .fullAccess:
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Access granted")
-                case .denied, .restricted:
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
-                    Text("Access denied")
-                    Spacer()
-                    Button("Open System Settings") {
-                        openSystemSettings()
-                    }
-                case .notDetermined, .writeOnly:
-                    Image(systemName: "questionmark.circle.fill")
-                        .foregroundColor(.yellow)
-                    Text("Permission required")
-                    Spacer()
-                    Button("Grant Access") {
-                        Task {
-                            _ = await appState.remindersService.requestAccess()
-                        }
-                    }
-                @unknown default:
-                    Text("Unknown status")
-                }
-            }
+            appState.remindersService.loadLists()
         }
     }
 
@@ -88,14 +41,15 @@ struct RemindersSettingsView: View {
                         .toggleStyle(.checkbox)
                     }
                 }
+                .padding(8)
             }
             .frame(maxHeight: 200)
-        }
-    }
-
-    private func openSystemSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders") {
-            NSWorkspace.shared.open(url)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+            )
         }
     }
 }

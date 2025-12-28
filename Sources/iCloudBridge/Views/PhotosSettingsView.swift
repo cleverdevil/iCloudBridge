@@ -6,59 +6,12 @@ struct PhotosSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Permission Status
-            permissionSection
-
-            Divider()
-
-            // Albums Selection
-            if appState.photosService.authorizationStatus == .authorized {
-                albumsSection
-            }
-
+            albumsSection
             Spacer()
         }
         .padding(20)
         .onAppear {
-            if appState.photosService.authorizationStatus == .authorized {
-                appState.photosService.loadAlbums()
-            }
-        }
-    }
-
-    private var permissionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Photos Access")
-                .font(.headline)
-
-            HStack {
-                switch appState.photosService.authorizationStatus {
-                case .authorized:
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Access granted")
-                case .denied, .restricted:
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
-                    Text("Access denied")
-                    Spacer()
-                    Button("Open System Settings") {
-                        openSystemSettings()
-                    }
-                case .notDetermined, .limited:
-                    Image(systemName: "questionmark.circle.fill")
-                        .foregroundColor(.yellow)
-                    Text("Permission required")
-                    Spacer()
-                    Button("Grant Access") {
-                        Task {
-                            _ = await appState.photosService.requestAccess()
-                        }
-                    }
-                @unknown default:
-                    Text("Unknown status")
-                }
-            }
+            appState.photosService.loadAlbums()
         }
     }
 
@@ -93,8 +46,15 @@ struct PhotosSettingsView: View {
                         albumList(appState.photosService.albumHierarchy.smartAlbums, indent: 1)
                     }
                 }
+                .padding(8)
             }
             .frame(maxHeight: 400)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+            )
         }
     }
 
@@ -178,11 +138,5 @@ struct PhotosSettingsView: View {
         .toggleStyle(.checkbox)
         .padding(.vertical, 2)
         .padding(.leading, CGFloat(indent * 20))
-    }
-
-    private func openSystemSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
-            NSWorkspace.shared.open(url)
-        }
     }
 }
