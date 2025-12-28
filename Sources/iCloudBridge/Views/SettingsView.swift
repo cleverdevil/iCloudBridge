@@ -36,17 +36,16 @@ struct SettingsView: View {
             Divider()
 
             // Tab Content
-            TabView(selection: $selectedTab) {
-                RemindersSettingsView(appState: appState)
-                    .tag(Tab.reminders)
-
-                PhotosSettingsView(appState: appState)
-                    .tag(Tab.photos)
-
-                serverSettingsView
-                    .tag(Tab.server)
+            Group {
+                switch selectedTab {
+                case .reminders:
+                    RemindersSettingsView(appState: appState)
+                case .photos:
+                    PhotosSettingsView(appState: appState)
+                case .server:
+                    serverSettingsView
+                }
             }
-            .tabViewStyle(.automatic)
 
             Divider()
 
