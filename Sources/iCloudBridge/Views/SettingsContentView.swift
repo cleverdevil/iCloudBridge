@@ -1,0 +1,28 @@
+import SwiftUI
+
+struct SettingsContentView: View {
+    @ObservedObject var appState: AppState
+    let onSave: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        if appState.hasAllPermissions {
+            SettingsView(appState: appState, onSave: onSave)
+        } else {
+            OnboardingView(appState: appState, onComplete: handleOnboardingComplete)
+        }
+    }
+
+    private func handleOnboardingComplete() {
+        // Reload data now that we have permissions
+        appState.remindersService.loadLists()
+        appState.photosService.loadAlbums()
+
+        if appState.hasSavedSettings {
+            // Has saved settings - start server and close window
+            onSave()
+            dismiss()
+        }
+        // Otherwise, stay open to show SettingsView (view will re-render)
+    }
+}
