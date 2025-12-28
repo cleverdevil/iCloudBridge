@@ -13,6 +13,7 @@ struct iCloudBridgeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
     @State private var serverManager: ServerManager?
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         MenuBarExtra {
@@ -26,7 +27,7 @@ struct iCloudBridgeApp: App {
         }
 
         Window("iCloud Bridge Settings", id: "settings") {
-            SettingsView(appState: appState, onSave: startServer)
+            SettingsContentView(appState: appState, onSave: startServer)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
@@ -36,6 +37,19 @@ struct iCloudBridgeApp: App {
         HStack(spacing: 4) {
             Image(systemName: statusIcon)
             Text("iCloud Bridge")
+        }
+        .onAppear {
+            handleLaunch()
+        }
+    }
+
+    private func handleLaunch() {
+        if appState.hasAllPermissions && appState.hasSavedSettings {
+            // Returning user with all permissions - auto-start server silently
+            startServer()
+        } else {
+            // Missing permissions OR no saved settings - open window
+            openWindow(id: "settings")
         }
     }
 
