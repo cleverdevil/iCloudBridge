@@ -478,7 +478,8 @@ class iCloudBridge:
         album_id: str,
         limit: int = 100,
         offset: int = 0,
-        sort: str = "album"
+        sort: str = "album",
+        media_type: Optional[str] = None
     ) -> tuple[list[Photo], int]:
         """
         Get photos in a specific album.
@@ -488,6 +489,7 @@ class iCloudBridge:
             limit: Number of photos per page (default: 100)
             offset: Number of photos to skip (default: 0)
             sort: Sort order - "album", "date-asc", or "date-desc" (default: "album")
+            media_type: Filter by type - "photo", "video", "live", or "all" (default: None/all)
 
         Returns:
             tuple[list[Photo], int]: Photos and total count
@@ -503,6 +505,8 @@ class iCloudBridge:
             params.append(f"offset={offset}")
         if sort != "album":
             params.append(f"sort={sort}")
+        if media_type is not None:
+            params.append(f"type={media_type}")
 
         if params:
             path += "?" + "&".join(params)
