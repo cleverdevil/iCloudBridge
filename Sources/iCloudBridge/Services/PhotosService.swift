@@ -216,7 +216,7 @@ class PhotosService: ObservableObject {
         return albumHierarchy.allSelectableAlbums.first { $0.localIdentifier == id }
     }
 
-    func getAssets(in album: PHAssetCollection, limit: Int = 100, offset: Int = 0, sort: String = "album") -> (assets: [PHAsset], total: Int) {
+    func getAssets(in album: PHAssetCollection, limit: Int = 100, offset: Int = 0, sort: String = "album", mediaType: String? = nil) -> (assets: [PHAsset], total: Int) {
         let fetchOptions = PHFetchOptions()
 
         // Configure sorting
@@ -227,6 +227,21 @@ class PhotosService: ObservableObject {
             fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         default:
             // "album" - use default album order (no sort descriptor)
+            break
+        }
+
+        // Configure media type filter
+        switch mediaType {
+        case "photo":
+            // Photos only (excludes videos and live photos)
+            fetchOptions.predicate = NSPredicate(format: "mediaType == %d AND NOT ((mediaSubtypes & %d) != 0)", PHAssetMediaType.image.rawValue, PHAssetMediaSubtype.photoLive.rawValue)
+        case "video":
+            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
+        case "live":
+            // Live photos have mediaSubtype containing .photoLive
+            fetchOptions.predicate = NSPredicate(format: "(mediaSubtypes & %d) != 0", PHAssetMediaSubtype.photoLive.rawValue)
+        default:
+            // nil or "all" - no filter
             break
         }
 

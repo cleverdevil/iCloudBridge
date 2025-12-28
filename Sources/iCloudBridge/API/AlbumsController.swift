@@ -104,14 +104,20 @@ struct AlbumsController: RouteCollection {
         let limit = (try? req.query.get(Int.self, at: "limit")) ?? 100
         let offset = (try? req.query.get(Int.self, at: "offset")) ?? 0
         let sort = (try? req.query.get(String.self, at: "sort")) ?? "album"
+        let mediaType = try? req.query.get(String.self, at: "type")
 
         // Validate sort parameter
         guard ["album", "date-asc", "date-desc"].contains(sort) else {
             throw Abort(.badRequest, reason: "Invalid sort parameter. Must be: album, date-asc, or date-desc")
         }
 
+        // Validate media type parameter
+        if let mediaType = mediaType, !["photo", "video", "live", "all"].contains(mediaType) {
+            throw Abort(.badRequest, reason: "Invalid type parameter. Must be: photo, video, live, or all")
+        }
+
         let result = await MainActor.run {
-            photosService.getAssets(in: album, limit: limit, offset: offset, sort: sort)
+            photosService.getAssets(in: album, limit: limit, offset: offset, sort: sort, mediaType: mediaType)
         }
 
         let photoDTOs = await MainActor.run {
