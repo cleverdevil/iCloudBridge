@@ -27,7 +27,12 @@ struct iCloudBridgeApp: App {
         }
 
         Window("iCloud Bridge Settings", id: "settings") {
-            SettingsContentView(appState: appState, onSave: startServer)
+            SettingsContentView(
+                appState: appState,
+                remindersService: appState.remindersService,
+                photosService: appState.photosService,
+                onSave: startServer
+            )
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)

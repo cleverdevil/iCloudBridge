@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var appState: AppState
     let onSave: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     @State private var selectedTab: Tab = .reminders
     @State private var portString: String = ""
@@ -120,5 +121,6 @@ struct SettingsView: View {
         appState.serverPort = port
         appState.saveSettings()
         onSave()
+        dismiss()
     }
 }

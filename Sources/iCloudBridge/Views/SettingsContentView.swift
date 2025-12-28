@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsContentView: View {
     @ObservedObject var appState: AppState
+    @ObservedObject var remindersService: RemindersService
+    @ObservedObject var photosService: PhotosService
     let onSave: () -> Void
     @Environment(\.dismiss) private var dismiss
 
