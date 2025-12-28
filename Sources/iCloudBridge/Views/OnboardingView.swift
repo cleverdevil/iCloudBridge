@@ -4,6 +4,8 @@ import Photos
 
 struct OnboardingView: View {
     @ObservedObject var appState: AppState
+    @ObservedObject var remindersService: RemindersService
+    @ObservedObject var photosService: PhotosService
     let onComplete: () -> Void
 
     @State private var currentStep: Int = 1
@@ -53,11 +55,11 @@ struct OnboardingView: View {
         .onAppear {
             updateCurrentStep()
         }
-        .onChange(of: appState.remindersService.authorizationStatus) { _, _ in
+        .onChange(of: remindersService.authorizationStatus) { _, _ in
             updateCurrentStep()
             checkCompletion()
         }
-        .onChange(of: appState.photosService.authorizationStatus) { _, _ in
+        .onChange(of: photosService.authorizationStatus) { _, _ in
             updateCurrentStep()
             checkCompletion()
         }
@@ -80,14 +82,14 @@ struct OnboardingView: View {
             title: "Photos Access",
             description: "Required to browse albums and serve photos through the API.",
             status: photosStatus,
-            isEnabled: appState.remindersService.authorizationStatus == .fullAccess,
+            isEnabled: remindersService.authorizationStatus == .fullAccess,
             action: requestPhotosAccess,
             openSettings: openPhotosSettings
         )
     }
 
     private var remindersStatus: PermissionStatus {
-        switch appState.remindersService.authorizationStatus {
+        switch remindersService.authorizationStatus {
         case .fullAccess:
             return .granted
         case .denied, .restricted:
@@ -98,7 +100,7 @@ struct OnboardingView: View {
     }
 
     private var photosStatus: PermissionStatus {
-        switch appState.photosService.authorizationStatus {
+        switch photosService.authorizationStatus {
         case .authorized:
             return .granted
         case .denied, .restricted:
@@ -109,7 +111,7 @@ struct OnboardingView: View {
     }
 
     private func updateCurrentStep() {
-        if appState.remindersService.authorizationStatus == .fullAccess {
+        if remindersService.authorizationStatus == .fullAccess {
             currentStep = 2
         } else {
             currentStep = 1
@@ -127,13 +129,13 @@ struct OnboardingView: View {
 
     private func requestRemindersAccess() {
         Task {
-            _ = await appState.remindersService.requestAccess()
+            _ = await remindersService.requestAccess()
         }
     }
 
     private func requestPhotosAccess() {
         Task {
-            _ = await appState.photosService.requestAccess()
+            _ = await photosService.requestAccess()
         }
     }
 

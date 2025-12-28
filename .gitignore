@@ -9,3 +9,4 @@ DerivedData/
 __pycache__/
 *.pyc
 .worktrees/
+photos-debug.log

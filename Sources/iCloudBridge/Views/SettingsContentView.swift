@@ -9,7 +9,12 @@ struct SettingsContentView: View {
         if appState.hasAllPermissions {
             SettingsView(appState: appState, onSave: onSave)
         } else {
-            OnboardingView(appState: appState, onComplete: handleOnboardingComplete)
+            OnboardingView(
+                appState: appState,
+                remindersService: appState.remindersService,
+                photosService: appState.photosService,
+                onComplete: handleOnboardingComplete
+            )
         }
     }
 
