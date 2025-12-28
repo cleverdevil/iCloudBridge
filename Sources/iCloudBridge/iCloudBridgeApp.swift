@@ -26,15 +26,21 @@ struct iCloudBridgeApp: App {
             menuBarLabel
         }
 
-        Window("iCloud Bridge", id: "settings") {
-            SettingsContentView(
+        // Onboarding window - shown when permissions are missing
+        Window("iCloud Bridge Setup", id: "onboarding") {
+            OnboardingView(
                 appState: appState,
                 remindersService: appState.remindersService,
                 photosService: appState.photosService,
-                onSave: startServer
+                onComplete: handleOnboardingComplete
             )
         }
         .windowResizability(.contentSize)
+
+        // Settings scene - provides native macOS preferences toolbar
+        Settings {
+            SettingsView(appState: appState, onSave: startServer)
+        }
     }
 
     private var menuBarLabel: some View {
@@ -51,10 +57,32 @@ struct iCloudBridgeApp: App {
         if appState.hasAllPermissions && appState.hasSavedSettings {
             // Returning user with all permissions - auto-start server silently
             startServer()
+        } else if !appState.hasAllPermissions {
+            // Missing permissions - show onboarding
+            openWindow(id: "onboarding")
         } else {
-            // Missing permissions OR no saved settings - open window
-            openWindow(id: "settings")
+            // Has permissions but no saved settings - open preferences
+            openSettings()
         }
+    }
+
+    private func handleOnboardingComplete() {
+        // Reload data now that we have permissions
+        appState.remindersService.loadLists()
+        appState.photosService.loadAlbums()
+
+        if appState.hasSavedSettings {
+            // Has saved settings - start server
+            startServer()
+        } else {
+            // No saved settings - open preferences for configuration
+            openSettings()
+        }
+    }
+
+    private func openSettings() {
+        // Open the Settings scene programmatically
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     private var statusIcon: String {
@@ -128,8 +156,8 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Button("Open Settings...") {
-                openWindow(id: "settings")
+            Button("Settings...") {
+                openSettings()
             }
             .keyboardShortcut(",", modifiers: .command)
 
@@ -157,6 +185,14 @@ struct MenuBarContentView: View {
             .keyboardShortcut("q", modifiers: .command)
         }
         .padding(8)
+    }
+
+    private func openSettings() {
+        if !appState.hasAllPermissions {
+            openWindow(id: "onboarding")
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 
     private var statusSection: some View {

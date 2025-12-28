@@ -7,6 +7,7 @@ struct OnboardingView: View {
     @ObservedObject var remindersService: RemindersService
     @ObservedObject var photosService: PhotosService
     let onComplete: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     @State private var currentStep: Int = 1
 
@@ -120,8 +121,9 @@ struct OnboardingView: View {
 
     private func checkCompletion() {
         if appState.hasAllPermissions {
-            // Small delay to show the completed state
+            // Small delay to show the completed state, then close and proceed
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                dismiss()
                 onComplete()
             }
         }
