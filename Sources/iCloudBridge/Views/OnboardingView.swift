@@ -51,7 +51,7 @@ struct OnboardingView: View {
             }
             .padding(20)
         }
-        .frame(width: 500, height: 500)
+        .frame(width: 500, height: 450)
         .onAppear {
             updateCurrentStep()
         }

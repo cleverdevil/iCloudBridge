@@ -26,7 +26,7 @@ struct iCloudBridgeApp: App {
             menuBarLabel
         }
 
-        Window("iCloud Bridge Settings", id: "settings") {
+        Window("iCloud Bridge", id: "settings") {
             SettingsContentView(
                 appState: appState,
                 remindersService: appState.remindersService,
@@ -34,7 +34,6 @@ struct iCloudBridgeApp: App {
                 onSave: startServer
             )
         }
-        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
     }
 

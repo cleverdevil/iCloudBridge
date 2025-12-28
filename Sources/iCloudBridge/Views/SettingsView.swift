@@ -5,62 +5,27 @@ struct SettingsView: View {
     let onSave: () -> Void
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedTab: Tab = .reminders
     @State private var portString: String = ""
     @State private var showingPortError: Bool = false
 
-    enum Tab {
-        case reminders
-        case photos
-        case server
-    }
-
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            Text("iCloud Bridge Settings")
-                .font(.title)
-                .padding(.top, 20)
-                .padding(.bottom, 10)
-
-            // Tab Picker
-            Picker("", selection: $selectedTab) {
-                Text("Reminders").tag(Tab.reminders)
-                Text("Photos").tag(Tab.photos)
-                Text("Server").tag(Tab.server)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10)
-
-            Divider()
-
-            // Tab Content
-            Group {
-                switch selectedTab {
-                case .reminders:
-                    RemindersSettingsView(appState: appState)
-                case .photos:
-                    PhotosSettingsView(appState: appState)
-                case .server:
-                    serverSettingsView
+        TabView {
+            RemindersSettingsView(appState: appState)
+                .tabItem {
+                    Label("Reminders", systemImage: "list.bullet.clipboard")
                 }
-            }
 
-            Divider()
-
-            // Footer with Save button
-            HStack {
-                Spacer()
-                Button("Save & Start Server") {
-                    saveAndStart()
+            PhotosSettingsView(appState: appState)
+                .tabItem {
+                    Label("Photos", systemImage: "photo.on.rectangle")
                 }
-                .disabled(!canSave)
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(20)
+
+            serverSettingsView
+                .tabItem {
+                    Label("Server", systemImage: "server.rack")
+                }
         }
-        .frame(width: 500, height: 600)
+        .frame(width: 500, height: 450)
         .onAppear {
             portString = String(appState.serverPort)
         }
@@ -68,12 +33,9 @@ struct SettingsView: View {
 
     private var serverSettingsView: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Server Configuration")
-                .font(.headline)
-
             VStack(alignment: .leading, spacing: 8) {
                 Text("Server Port")
-                    .font(.subheadline)
+                    .font(.headline)
 
                 HStack {
                     TextField("Port", text: $portString)
@@ -93,6 +55,17 @@ struct SettingsView: View {
                 Text("Default: 31337")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Save & Start Server") {
+                    saveAndStart()
+                }
+                .disabled(!canSave)
+                .buttonStyle(.borderedProminent)
             }
 
             Spacer()
