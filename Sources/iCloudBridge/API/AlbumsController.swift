@@ -8,8 +8,38 @@ struct AlbumsController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let albums = routes.grouped("albums")
         albums.get(use: index)
-        albums.get(":albumId", use: show)
-        albums.get(":albumId", "photos", use: photos)
+        // Use catchall for album ID since Photos IDs contain slashes (e.g., "ABC123/L0/040")
+        albums.get("**", use: routeHandler)
+    }
+
+    @Sendable
+    func routeHandler(req: Request) async throws -> Response {
+        // Get the catchall path components
+        let pathComponents = req.parameters.getCatchall()
+        guard !pathComponents.isEmpty else {
+            throw Abort(.badRequest, reason: "Missing album ID")
+        }
+
+        // Check if this is a photos request (last component is "photos")
+        if pathComponents.last == "photos" {
+            let albumId = pathComponents.dropLast().joined(separator: "/")
+            return try await photosResponse(req: req, albumId: albumId)
+        } else {
+            let albumId = pathComponents.joined(separator: "/")
+            return try await showResponse(req: req, albumId: albumId)
+        }
+    }
+
+    @Sendable
+    func showResponse(req: Request, albumId: String) async throws -> Response {
+        let dto = try await show(req: req, albumId: albumId)
+        return try await dto.encodeResponse(for: req)
+    }
+
+    @Sendable
+    func photosResponse(req: Request, albumId: String) async throws -> Response {
+        let dto = try await photos(req: req, albumId: albumId)
+        return try await dto.encodeResponse(for: req)
     }
 
     @Sendable
@@ -37,11 +67,7 @@ struct AlbumsController: RouteCollection {
     }
 
     @Sendable
-    func show(req: Request) async throws -> AlbumDTO {
-        guard let albumId = req.parameters.get("albumId") else {
-            throw Abort(.badRequest, reason: "Missing album ID")
-        }
-
+    func show(req: Request, albumId: String) async throws -> AlbumDTO {
         let ids = selectedAlbumIds()
         guard ids.contains(albumId) else {
             throw Abort(.notFound, reason: "Album not found or not selected")
@@ -64,11 +90,7 @@ struct AlbumsController: RouteCollection {
     }
 
     @Sendable
-    func photos(req: Request) async throws -> PhotosListResponse {
-        guard let albumId = req.parameters.get("albumId") else {
-            throw Abort(.badRequest, reason: "Missing album ID")
-        }
-
+    func photos(req: Request, albumId: String) async throws -> PhotosListResponse {
         let ids = selectedAlbumIds()
         guard ids.contains(albumId) else {
             throw Abort(.notFound, reason: "Album not found or not selected")

@@ -7,19 +7,41 @@ struct PhotosController: RouteCollection {
 
     func boot(routes: RoutesBuilder) throws {
         let photos = routes.grouped("photos")
-        photos.get(":photoId", use: show)
-        photos.get(":photoId", "thumbnail", use: thumbnail)
-        photos.get(":photoId", "image", use: image)
-        photos.get(":photoId", "video", use: video)
-        photos.get(":photoId", "live-video", use: liveVideo)
+        // Use catchall for photo ID since Photos IDs contain slashes (e.g., "ABC123/L0/040")
+        photos.get("**", use: routeHandler)
     }
 
     @Sendable
-    func show(req: Request) async throws -> PhotoDTO {
-        guard let photoId = req.parameters.get("photoId") else {
+    func routeHandler(req: Request) async throws -> Response {
+        let pathComponents = req.parameters.getCatchall()
+        guard !pathComponents.isEmpty else {
             throw Abort(.badRequest, reason: "Missing photo ID")
         }
 
+        // Check what type of request this is based on last component
+        let lastComponent = pathComponents.last!
+        switch lastComponent {
+        case "thumbnail":
+            let photoId = pathComponents.dropLast().joined(separator: "/")
+            return try await thumbnail(req: req, photoId: photoId)
+        case "image":
+            let photoId = pathComponents.dropLast().joined(separator: "/")
+            return try await image(req: req, photoId: photoId)
+        case "video":
+            let photoId = pathComponents.dropLast().joined(separator: "/")
+            return try await video(req: req, photoId: photoId)
+        case "live-video":
+            let photoId = pathComponents.dropLast().joined(separator: "/")
+            return try await liveVideo(req: req, photoId: photoId)
+        default:
+            // No suffix means just the photo metadata
+            let photoId = pathComponents.joined(separator: "/")
+            return try await show(req: req, photoId: photoId)
+        }
+    }
+
+    @Sendable
+    func show(req: Request, photoId: String) async throws -> Response {
         guard let asset = await MainActor.run(body: { photosService.getAsset(id: photoId) }) else {
             throw Abort(.notFound, reason: "Photo not found")
         }
@@ -48,17 +70,14 @@ struct PhotosController: RouteCollection {
             throw Abort(.notFound, reason: "Photo not found in selected albums")
         }
 
-        return await MainActor.run {
+        let dto = await MainActor.run {
             photosService.toDTO(asset, albumId: albumId)
         }
+        return try await dto.encodeResponse(for: req)
     }
 
     @Sendable
-    func thumbnail(req: Request) async throws -> Response {
-        guard let photoId = req.parameters.get("photoId") else {
-            throw Abort(.badRequest, reason: "Missing photo ID")
-        }
-
+    func thumbnail(req: Request, photoId: String) async throws -> Response {
         guard let asset = await MainActor.run(body: { photosService.getAsset(id: photoId) }) else {
             throw Abort(.notFound, reason: "Photo not found")
         }
@@ -85,11 +104,7 @@ struct PhotosController: RouteCollection {
     }
 
     @Sendable
-    func image(req: Request) async throws -> Response {
-        guard let photoId = req.parameters.get("photoId") else {
-            throw Abort(.badRequest, reason: "Missing photo ID")
-        }
-
+    func image(req: Request, photoId: String) async throws -> Response {
         guard let asset = await MainActor.run(body: { photosService.getAsset(id: photoId) }) else {
             throw Abort(.notFound, reason: "Photo not found")
         }
@@ -144,11 +159,7 @@ struct PhotosController: RouteCollection {
     }
 
     @Sendable
-    func video(req: Request) async throws -> Response {
-        guard let photoId = req.parameters.get("photoId") else {
-            throw Abort(.badRequest, reason: "Missing photo ID")
-        }
-
+    func video(req: Request, photoId: String) async throws -> Response {
         guard let asset = await MainActor.run(body: { photosService.getAsset(id: photoId) }) else {
             throw Abort(.notFound, reason: "Photo not found")
         }
@@ -164,11 +175,7 @@ struct PhotosController: RouteCollection {
     }
 
     @Sendable
-    func liveVideo(req: Request) async throws -> Response {
-        guard let photoId = req.parameters.get("photoId") else {
-            throw Abort(.badRequest, reason: "Missing photo ID")
-        }
-
+    func liveVideo(req: Request, photoId: String) async throws -> Response {
         guard let asset = await MainActor.run(body: { photosService.getAsset(id: photoId) }) else {
             throw Abort(.notFound, reason: "Photo not found")
         }

@@ -51,7 +51,9 @@ class PhotosService: ObservableObject {
         }
 
         // Photo Stream albums: "Apr 2012 Photo Stream", etc.
-        if title.localizedCaseInsensitiveContains("Photo Stream") {
+        // Note: Some titles use non-breaking space (U+00A0) instead of regular space
+        let normalizedTitle = title.replacingOccurrences(of: "\u{00A0}", with: " ")
+        if normalizedTitle.localizedCaseInsensitiveContains("Photo Stream") {
             return true
         }
 
@@ -102,15 +104,39 @@ class PhotosService: ObservableObject {
                 // Folder - fetch its contents
                 var folderAlbums: [AlbumItem] = []
                 let contents = PHCollection.fetchCollections(in: folder, options: nil)
+                // Log folder contents for debugging
+                let logURL = FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent("Library/Logs/iCloudBridge")
+                let logFile = logURL.appendingPathComponent("albums-debug.log")
+                try? FileManager.default.createDirectory(at: logURL, withIntermediateDirectories: true)
+                var logLines: [String] = ["=== Folder: \(folder.localizedTitle ?? "Unknown") ==="]
+
                 contents.enumerateObjects { nested, _, _ in
                     if let nestedAlbum = nested as? PHAssetCollection {
-                        // Filter out legacy iPhoto albums (date events, Photo Stream)
                         let title = nestedAlbum.localizedTitle ?? ""
-                        guard !self.isLegacyAlbumTitle(title) else { return }
+                        let isLegacy = self.isLegacyAlbumTitle(title)
+                        logLines.append("[\(isLegacy ? "FILTERED" : "KEPT")] \"\(title)\"")
+
+                        // Filter out legacy iPhoto albums (date events, Photo Stream)
+                        guard !isLegacy else { return }
 
                         if let item = self.makeAlbumItem(from: nestedAlbum) {
                             folderAlbums.append(item)
                         }
+                    }
+                }
+
+                // Write log
+                let logContent = logLines.joined(separator: "\n") + "\n\n"
+                if let data = logContent.data(using: .utf8) {
+                    if FileManager.default.fileExists(atPath: logFile.path) {
+                        if let handle = try? FileHandle(forWritingTo: logFile) {
+                            handle.seekToEndOfFile()
+                            handle.write(data)
+                            handle.closeFile()
+                        }
+                    } else {
+                        try? data.write(to: logFile)
                     }
                 }
                 if !folderAlbums.isEmpty {
