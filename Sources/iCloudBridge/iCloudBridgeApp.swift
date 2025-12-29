@@ -80,9 +80,10 @@ struct iCloudBridgeApp: App {
         }
     }
 
+    @Environment(\.openSettings) private var openSettingsAction
+
     private func openSettings() {
-        // Open the Settings scene programmatically
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        openSettingsAction()
     }
 
     private var statusIcon: String {
@@ -141,6 +142,7 @@ struct iCloudBridgeApp: App {
 struct MenuBarContentView: View {
     @ObservedObject var appState: AppState
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettingsAction
 
     let onStartServer: () -> Void
     let onStopServer: () -> Void
@@ -191,7 +193,7 @@ struct MenuBarContentView: View {
         if !appState.hasAllPermissions {
             openWindow(id: "onboarding")
         } else {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            openSettingsAction()
         }
     }
 
