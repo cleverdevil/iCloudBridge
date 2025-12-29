@@ -42,7 +42,15 @@ from typing import Optional
 
 @dataclass
 class ReminderList:
-    """Represents a Reminders list."""
+    """
+    Represents a Reminders list from iCloud.
+
+    Attributes:
+        id: Unique identifier for the list.
+        title: Display name of the list.
+        color: Hex color code (e.g., "#FF6B6B"), or None if not set.
+        reminder_count: Number of incomplete reminders in the list.
+    """
     id: str
     title: str
     color: Optional[str]
@@ -60,7 +68,19 @@ class ReminderList:
 
 @dataclass
 class Reminder:
-    """Represents a single reminder."""
+    """
+    Represents a single reminder item.
+
+    Attributes:
+        id: Unique identifier for the reminder.
+        title: Title/name of the reminder.
+        notes: Additional notes or description, or None.
+        is_completed: Whether the reminder has been completed.
+        priority: Priority level (0=none, 1=high, 5=medium, 9=low).
+        due_date: Due date and time, or None if not set.
+        completion_date: When the reminder was completed, or None.
+        list_id: ID of the list this reminder belongs to.
+    """
     id: str
     title: str
     notes: Optional[str]
@@ -94,7 +114,18 @@ class Reminder:
 
 @dataclass
 class Album:
-    """Represents a photo album."""
+    """
+    Represents a photo album from the Photos library.
+
+    Attributes:
+        id: Unique identifier for the album.
+        title: Display name of the album.
+        album_type: Type of album ("user", "smart", or "shared").
+        photo_count: Number of photos in the album.
+        video_count: Number of videos in the album.
+        start_date: Date of the earliest photo, or None.
+        end_date: Date of the latest photo, or None.
+    """
     id: str
     title: str
     album_type: str
@@ -126,7 +157,22 @@ class Album:
 
 @dataclass
 class Photo:
-    """Represents a single photo."""
+    """
+    Represents a single photo or video from the Photos library.
+
+    Attributes:
+        id: Unique identifier for the photo.
+        album_id: ID of the album containing this photo.
+        media_type: Type of media ("photo", "video", or "livePhoto").
+        creation_date: When the photo was taken.
+        modification_date: When the photo was last modified, or None.
+        width: Image width in pixels.
+        height: Image height in pixels.
+        is_favorite: Whether the photo is marked as a favorite.
+        is_hidden: Whether the photo is hidden.
+        filename: Original filename, or None.
+        file_size: File size in bytes, or None.
+    """
     id: str
     album_id: str
     media_type: str

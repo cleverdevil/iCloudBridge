@@ -1,0 +1,944 @@
+openapi: 3.0.3
+info:
+  title: iCloud Bridge API
+  description: |
+    REST API for accessing iCloud Reminders and Photos on macOS.
+
+    The API runs locally on your Mac and provides programmatic access to your
+    iCloud data through the native macOS frameworks (EventKit and Photos).
+
+    ## Authentication
+
+    Currently, no authentication is required. The API binds only to localhost
+    and is not accessible from other machines.
+
+    ## Rate Limiting
+
+    No rate limiting is applied. However, be mindful that some operations
+    (particularly fetching full-resolution photos from iCloud) may take time
+    if the assets need to be downloaded.
+  version: 1.0.0
+  contact:
+    name: iCloud Bridge
+    url: https://github.com/cleverdevil/icloudbridge
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:31337/api/v1
+    description: Local development server (default port)
+  - url: http://localhost:{port}/api/v1
+    description: Custom port
+    variables:
+      port:
+        default: "31337"
+        description: Server port configured in the app
+
+tags:
+  - name: Health
+    description: Server health check
+  - name: Lists
+    description: Reminder lists management
+  - name: Reminders
+    description: Individual reminder operations
+  - name: Albums
+    description: Photo album management
+  - name: Photos
+    description: Individual photo operations
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the server health status
+      operationId: getHealth
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ============ LISTS ============
+  /lists:
+    get:
+      tags:
+        - Lists
+      summary: Get all reminder lists
+      description: Returns all reminder lists that have been selected in the app settings
+      operationId: getLists
+      responses:
+        '200':
+          description: List of reminder lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReminderList'
+
+  /lists/{listId}:
+    get:
+      tags:
+        - Lists
+      summary: Get a specific reminder list
+      description: Returns details for a single reminder list including the reminder count
+      operationId: getList
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          description: The unique identifier of the reminder list
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reminder list details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderList'
+        '404':
+          description: List not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /lists/{listId}/reminders:
+    get:
+      tags:
+        - Lists
+      summary: Get reminders in a list
+      description: Returns all reminders in the specified list
+      operationId: getRemindersInList
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          description: The unique identifier of the reminder list
+          schema:
+            type: string
+        - name: includeCompleted
+          in: query
+          required: false
+          description: Whether to include completed reminders
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reminder'
+        '404':
+          description: List not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Lists
+      summary: Create a new reminder
+      description: Creates a new reminder in the specified list
+      operationId: createReminder
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          description: The unique identifier of the reminder list
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReminder'
+      responses:
+        '201':
+          description: Reminder created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: List not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============ REMINDERS ============
+  /reminders/{reminderId}:
+    get:
+      tags:
+        - Reminders
+      summary: Get a specific reminder
+      description: Returns details for a single reminder
+      operationId: getReminder
+      parameters:
+        - name: reminderId
+          in: path
+          required: true
+          description: The unique identifier of the reminder
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reminder details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+        '404':
+          description: Reminder not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Reminders
+      summary: Update a reminder
+      description: Updates an existing reminder. All fields are optional; only provided fields will be updated.
+      operationId: updateReminder
+      parameters:
+        - name: reminderId
+          in: path
+          required: true
+          description: The unique identifier of the reminder
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReminder'
+      responses:
+        '200':
+          description: Reminder updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+        '404':
+          description: Reminder not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Reminders
+      summary: Delete a reminder
+      description: Permanently deletes a reminder
+      operationId: deleteReminder
+      parameters:
+        - name: reminderId
+          in: path
+          required: true
+          description: The unique identifier of the reminder
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Reminder deleted successfully
+        '404':
+          description: Reminder not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============ ALBUMS ============
+  /albums:
+    get:
+      tags:
+        - Albums
+      summary: Get all photo albums
+      description: Returns all photo albums that have been selected in the app settings
+      operationId: getAlbums
+      responses:
+        '200':
+          description: List of photo albums
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Album'
+
+  /albums/{albumId}:
+    get:
+      tags:
+        - Albums
+      summary: Get a specific album
+      description: Returns details for a single photo album
+      operationId: getAlbum
+      parameters:
+        - name: albumId
+          in: path
+          required: true
+          description: The unique identifier of the album
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Album details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Album'
+        '404':
+          description: Album not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /albums/{albumId}/photos:
+    get:
+      tags:
+        - Albums
+      summary: Get photos in an album
+      description: Returns photos in the specified album with pagination support
+      operationId: getPhotosInAlbum
+      parameters:
+        - name: albumId
+          in: path
+          required: true
+          description: The unique identifier of the album
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of photos to return
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+        - name: offset
+          in: query
+          required: false
+          description: Number of photos to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: sort
+          in: query
+          required: false
+          description: Sort order for photos
+          schema:
+            type: string
+            enum:
+              - album
+              - date-asc
+              - date-desc
+            default: album
+        - name: type
+          in: query
+          required: false
+          description: Filter by media type
+          schema:
+            type: string
+            enum:
+              - photo
+              - video
+              - live
+              - all
+            default: all
+      responses:
+        '200':
+          description: Paginated list of photos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotosListResponse'
+        '404':
+          description: Album not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============ PHOTOS ============
+  /photos/{photoId}:
+    get:
+      tags:
+        - Photos
+      summary: Get photo metadata
+      description: Returns metadata for a single photo including EXIF data if available
+      operationId: getPhoto
+      parameters:
+        - name: photoId
+          in: path
+          required: true
+          description: The unique identifier of the photo
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Photo metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Photo'
+        '404':
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /photos/{photoId}/thumbnail:
+    get:
+      tags:
+        - Photos
+      summary: Get photo thumbnail
+      description: Returns a thumbnail image for the photo
+      operationId: getPhotoThumbnail
+      parameters:
+        - name: photoId
+          in: path
+          required: true
+          description: The unique identifier of the photo
+          schema:
+            type: string
+        - name: size
+          in: query
+          required: false
+          description: Thumbnail size
+          schema:
+            type: string
+            enum:
+              - small
+              - medium
+            default: medium
+      responses:
+        '200':
+          description: Thumbnail image data
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /photos/{photoId}/image:
+    get:
+      tags:
+        - Photos
+      summary: Get full-resolution image
+      description: |
+        Returns the full-resolution image. If the photo is stored in iCloud and
+        not yet downloaded locally, the response may be 202 Accepted with a
+        retry-after header. Use the `wait` parameter to block until the image
+        is available.
+      operationId: getPhotoImage
+      parameters:
+        - name: photoId
+          in: path
+          required: true
+          description: The unique identifier of the photo
+          schema:
+            type: string
+        - name: wait
+          in: query
+          required: false
+          description: Wait for iCloud download to complete (up to 30 seconds)
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Full-resolution image data
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/heic:
+              schema:
+                type: string
+                format: binary
+        '202':
+          description: Image is being downloaded from iCloud
+          headers:
+            Retry-After:
+              description: Suggested wait time in seconds before retrying
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: pending
+                  message:
+                    type: string
+                    example: Image is being downloaded from iCloud
+        '404':
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /photos/{photoId}/video:
+    get:
+      tags:
+        - Photos
+      summary: Get video file
+      description: Returns the video file for video assets
+      operationId: getPhotoVideo
+      parameters:
+        - name: photoId
+          in: path
+          required: true
+          description: The unique identifier of the video
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Video file data
+          content:
+            video/quicktime:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Asset is not a video
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Video not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /photos/{photoId}/live-video:
+    get:
+      tags:
+        - Photos
+      summary: Get Live Photo video component
+      description: Returns the video component of a Live Photo
+      operationId: getLivePhotoVideo
+      parameters:
+        - name: photoId
+          in: path
+          required: true
+          description: The unique identifier of the Live Photo
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Live Photo video data
+          content:
+            video/quicktime:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Asset is not a Live Photo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ReminderList:
+      type: object
+      required:
+        - id
+        - title
+        - reminderCount
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the list
+          example: "ABC123-DEF456"
+        title:
+          type: string
+          description: Display name of the list
+          example: "Shopping"
+        color:
+          type: string
+          nullable: true
+          description: Hex color code for the list
+          example: "#FF6B6B"
+        reminderCount:
+          type: integer
+          description: Number of incomplete reminders in the list
+          example: 5
+
+    Reminder:
+      type: object
+      required:
+        - id
+        - title
+        - isCompleted
+        - priority
+        - listId
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the reminder
+          example: "REM123-456"
+        title:
+          type: string
+          description: Title of the reminder
+          example: "Buy milk"
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+          example: "Get 2% milk from Whole Foods"
+        isCompleted:
+          type: boolean
+          description: Whether the reminder is completed
+          example: false
+        priority:
+          type: integer
+          description: Priority level (0=none, 1=high, 5=medium, 9=low)
+          example: 0
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date and time in ISO 8601 format
+          example: "2024-12-31T10:00:00Z"
+        completionDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the reminder was completed
+          example: null
+        listId:
+          type: string
+          description: ID of the list this reminder belongs to
+          example: "ABC123-DEF456"
+
+    CreateReminder:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Title of the reminder
+          example: "Call dentist"
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+          example: "Schedule cleaning appointment"
+        priority:
+          type: integer
+          description: Priority level (0=none, 1=high, 5=medium, 9=low)
+          default: 0
+          example: 1
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date and time in ISO 8601 format
+          example: "2024-12-31T10:00:00Z"
+
+    UpdateReminder:
+      type: object
+      properties:
+        title:
+          type: string
+          description: New title for the reminder
+          example: "Call dentist office"
+        notes:
+          type: string
+          nullable: true
+          description: New notes
+          example: "Updated notes"
+        isCompleted:
+          type: boolean
+          description: Mark as completed or incomplete
+          example: true
+        priority:
+          type: integer
+          description: New priority level
+          example: 5
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: New due date
+          example: "2024-12-31T14:00:00Z"
+
+    Album:
+      type: object
+      required:
+        - id
+        - title
+        - albumType
+        - photoCount
+        - videoCount
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the album
+          example: "ALB123-789"
+        title:
+          type: string
+          description: Display name of the album
+          example: "Vacation 2024"
+        albumType:
+          type: string
+          enum:
+            - user
+            - smart
+            - shared
+          description: Type of album
+          example: "user"
+        photoCount:
+          type: integer
+          description: Number of photos in the album
+          example: 150
+        videoCount:
+          type: integer
+          description: Number of videos in the album
+          example: 12
+        startDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date of earliest photo in album
+          example: "2024-06-01T08:30:00Z"
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date of latest photo in album
+          example: "2024-06-15T18:45:00Z"
+
+    Photo:
+      type: object
+      required:
+        - id
+        - albumId
+        - mediaType
+        - creationDate
+        - width
+        - height
+        - isFavorite
+        - isHidden
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the photo
+          example: "PHO123-ABC"
+        albumId:
+          type: string
+          description: ID of the album containing this photo
+          example: "ALB123-789"
+        mediaType:
+          type: string
+          enum:
+            - photo
+            - video
+            - livePhoto
+          description: Type of media
+          example: "photo"
+        creationDate:
+          type: string
+          format: date-time
+          description: When the photo was taken
+          example: "2024-06-10T14:30:00Z"
+        modificationDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the photo was last modified
+          example: "2024-06-10T15:00:00Z"
+        width:
+          type: integer
+          description: Image width in pixels
+          example: 4032
+        height:
+          type: integer
+          description: Image height in pixels
+          example: 3024
+        isFavorite:
+          type: boolean
+          description: Whether the photo is marked as favorite
+          example: false
+        isHidden:
+          type: boolean
+          description: Whether the photo is hidden
+          example: false
+        filename:
+          type: string
+          nullable: true
+          description: Original filename
+          example: "IMG_1234.HEIC"
+        fileSize:
+          type: integer
+          format: int64
+          nullable: true
+          description: File size in bytes
+          example: 2456789
+        location:
+          $ref: '#/components/schemas/Location'
+        camera:
+          $ref: '#/components/schemas/Camera'
+        settings:
+          $ref: '#/components/schemas/CameraSettings'
+
+    Location:
+      type: object
+      nullable: true
+      properties:
+        latitude:
+          type: number
+          format: double
+          description: GPS latitude
+          example: 37.7749
+        longitude:
+          type: number
+          format: double
+          description: GPS longitude
+          example: -122.4194
+
+    Camera:
+      type: object
+      nullable: true
+      properties:
+        make:
+          type: string
+          nullable: true
+          description: Camera manufacturer
+          example: "Apple"
+        model:
+          type: string
+          nullable: true
+          description: Camera model
+          example: "iPhone 15 Pro"
+        lens:
+          type: string
+          nullable: true
+          description: Lens information
+          example: "iPhone 15 Pro back triple camera 6.765mm f/1.78"
+
+    CameraSettings:
+      type: object
+      nullable: true
+      properties:
+        iso:
+          type: integer
+          nullable: true
+          description: ISO sensitivity
+          example: 100
+        aperture:
+          type: number
+          format: double
+          nullable: true
+          description: Aperture f-number
+          example: 1.78
+        shutterSpeed:
+          type: string
+          nullable: true
+          description: Shutter speed as a fraction
+          example: "1/120"
+        focalLength:
+          type: number
+          format: double
+          nullable: true
+          description: Focal length in mm
+          example: 6.765
+
+    PhotosListResponse:
+      type: object
+      required:
+        - photos
+        - total
+        - limit
+        - offset
+      properties:
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Photo'
+        total:
+          type: integer
+          description: Total number of photos in the album
+          example: 150
+        limit:
+          type: integer
+          description: Number of photos returned per page
+          example: 100
+        offset:
+          type: integer
+          description: Number of photos skipped
+          example: 0
+
+    Error:
+      type: object
+      required:
+        - error
+        - reason
+      properties:
+        error:
+          type: boolean
+          example: true
+        reason:
+          type: string
+          description: Human-readable error message
+          example: "List not found"

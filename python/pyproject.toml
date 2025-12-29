@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icloudbridge"
+version = "1.0.0"
+description = "Python client for the iCloud Bridge REST API"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Jonathan LaCour", email = "jonathan@cleverdevil.org"}
+]
+keywords = ["icloud", "reminders", "photos", "macos", "api", "client"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "sphinx-autodoc-typehints>=1.25",
+    "pytest>=7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/cleverdevil/icloudbridge"
+Documentation = "https://github.com/cleverdevil/icloudbridge/tree/main/python/docs"
+Repository = "https://github.com/cleverdevil/icloudbridge"
+Issues = "https://github.com/cleverdevil/icloudbridge/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["icloudbridge*"]
+
+[tool.setuptools]
+py-modules = ["icloudbridge"]

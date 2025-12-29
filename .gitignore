@@ -8,5 +8,9 @@ DerivedData/
 *.app
 __pycache__/
 *.pyc
+.venv/
+*.egg-info/
+python/docs/_build/
+docs/_serve/
 .worktrees/
 photos-debug.log
