@@ -9,23 +9,38 @@ struct SettingsView: View {
     @State private var showingPortError: Bool = false
 
     var body: some View {
-        TabView {
-            RemindersSettingsView(appState: appState)
-                .tabItem {
-                    Label("Reminders", systemImage: "list.bullet.clipboard")
-                }
+        VStack(spacing: 0) {
+            TabView {
+                RemindersSettingsView(appState: appState)
+                    .tabItem {
+                        Label("Reminders", systemImage: "list.bullet.clipboard")
+                    }
 
-            PhotosSettingsView(appState: appState)
-                .tabItem {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                }
+                PhotosSettingsView(appState: appState)
+                    .tabItem {
+                        Label("Photos", systemImage: "photo.on.rectangle")
+                    }
 
-            serverSettingsView
-                .tabItem {
-                    Label("Server", systemImage: "server.rack")
+                serverSettingsView
+                    .tabItem {
+                        Label("Server", systemImage: "server.rack")
+                    }
+            }
+
+            Divider()
+
+            // Footer with Save button - visible on all tabs
+            HStack {
+                Spacer()
+                Button("Save & Start Server") {
+                    saveAndStart()
                 }
+                .disabled(!canSave)
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(16)
         }
-        .frame(width: 500, height: 450)
+        .frame(width: 500, height: 480)
         .onAppear {
             portString = String(appState.serverPort)
         }
@@ -55,17 +70,6 @@ struct SettingsView: View {
                 Text("Default: 31337")
                     .font(.caption)
                     .foregroundColor(.secondary)
-            }
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button("Save & Start Server") {
-                    saveAndStart()
-                }
-                .disabled(!canSave)
-                .buttonStyle(.borderedProminent)
             }
 
             Spacer()
