@@ -27,8 +27,8 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
-            .padding(.top, 40)
-            .padding(.bottom, 30)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
 
             Divider()
 
