@@ -9,8 +9,6 @@ struct OnboardingView: View {
     let onComplete: () -> Void
     @Environment(\.dismiss) private var dismiss
 
-    @State private var currentStep: Int = 1
-
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -40,28 +38,13 @@ struct OnboardingView: View {
                 photosStep
             }
             .padding(30)
-
-            Spacer()
-
-            // Footer
-            HStack {
-                Text("Step \(currentStep) of 2")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            .padding(20)
         }
-        .frame(width: 500, height: 520)
-        .onAppear {
-            updateCurrentStep()
-        }
+        .frame(width: 500)
+        .fixedSize(horizontal: false, vertical: true)
         .onChange(of: remindersService.authorizationStatus) { _, _ in
-            updateCurrentStep()
             checkCompletion()
         }
         .onChange(of: photosService.authorizationStatus) { _, _ in
-            updateCurrentStep()
             checkCompletion()
         }
     }
@@ -108,14 +91,6 @@ struct OnboardingView: View {
             return .denied
         default:
             return .notDetermined
-        }
-    }
-
-    private func updateCurrentStep() {
-        if remindersService.authorizationStatus == .fullAccess {
-            currentStep = 2
-        } else {
-            currentStep = 1
         }
     }
 

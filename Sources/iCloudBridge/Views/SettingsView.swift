@@ -5,23 +5,44 @@ struct SettingsView: View {
     let onSave: () -> Void
     @Environment(\.dismiss) private var dismiss
 
+    @State private var selectedTab: Tab = .reminders
     @State private var portString: String = ""
     @State private var showingPortError: Bool = false
 
+    enum Tab: Hashable {
+        case reminders
+        case photos
+        case server
+    }
+
+    private var contentHeight: CGFloat {
+        switch selectedTab {
+        case .reminders:
+            return 320
+        case .photos:
+            return 480
+        case .server:
+            return 200
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            TabView {
+            TabView(selection: $selectedTab) {
                 RemindersSettingsView(appState: appState)
+                    .tag(Tab.reminders)
                     .tabItem {
                         Label("Reminders", systemImage: "list.bullet.clipboard")
                     }
 
                 PhotosSettingsView(appState: appState)
+                    .tag(Tab.photos)
                     .tabItem {
                         Label("Photos", systemImage: "photo.on.rectangle")
                     }
 
                 serverSettingsView
+                    .tag(Tab.server)
                     .tabItem {
                         Label("Server", systemImage: "server.rack")
                     }
@@ -40,7 +61,8 @@ struct SettingsView: View {
             }
             .padding(16)
         }
-        .frame(width: 500, height: 480)
+        .frame(width: 500, height: contentHeight)
+        .animation(.easeInOut(duration: 0.2), value: selectedTab)
         .onAppear {
             portString = String(appState.serverPort)
         }

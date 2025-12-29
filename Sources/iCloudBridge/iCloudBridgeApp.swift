@@ -35,6 +35,7 @@ struct iCloudBridgeApp: App {
                 onComplete: handleOnboardingComplete
             )
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
         // Settings scene - provides native macOS preferences toolbar
