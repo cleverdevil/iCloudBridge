@@ -55,14 +55,16 @@ class ReminderList:
     title: str
     color: Optional[str]
     reminder_count: int
+    _client: Optional["iCloudBridge"] = field(default=None, repr=False, compare=False)
 
     @classmethod
-    def from_dict(cls, data: dict) -> ReminderList:
+    def from_dict(cls, data: dict, client: "iCloudBridge" = None) -> ReminderList:
         return cls(
             id=data["id"],
             title=data["title"],
             color=data.get("color"),
             reminder_count=data["reminderCount"],
+            _client=client,
         )
 
 
