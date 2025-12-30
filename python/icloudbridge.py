@@ -35,7 +35,7 @@ import json
 import urllib.request
 import urllib.error
 import urllib.parse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -133,9 +133,10 @@ class Album:
     video_count: int
     start_date: Optional[datetime]
     end_date: Optional[datetime]
+    _client: Optional["iCloudBridge"] = field(default=None, repr=False, compare=False)
 
     @classmethod
-    def from_dict(cls, data: dict) -> Album:
+    def from_dict(cls, data: dict, client: "iCloudBridge" = None) -> Album:
         start_date = None
         if data.get("startDate"):
             start_date = _parse_iso_date(data["startDate"])
@@ -152,6 +153,7 @@ class Album:
             video_count=data["videoCount"],
             start_date=start_date,
             end_date=end_date,
+            _client=client,
         )
 
 
