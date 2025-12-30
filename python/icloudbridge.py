@@ -324,7 +324,7 @@ class iCloudBridge:
             list[ReminderList]: All reminder lists configured in iCloud Bridge
         """
         data = self._request("GET", "/lists")
-        return [ReminderList.from_dict(item) for item in data]
+        return [ReminderList.from_dict(item, self) for item in data]
 
     def get_list(self, list_id: str) -> ReminderList:
         """
@@ -340,7 +340,7 @@ class iCloudBridge:
             NotFoundError: If the list is not found
         """
         data = self._request("GET", f"/lists/{urllib.parse.quote(list_id)}")
-        return ReminderList.from_dict(data)
+        return ReminderList.from_dict(data, self)
 
     # Reminder operations
 
@@ -365,7 +365,7 @@ class iCloudBridge:
         if include_completed:
             path += "?includeCompleted=true"
         data = self._request("GET", path)
-        return [Reminder.from_dict(item) for item in data]
+        return [Reminder.from_dict(item, self) for item in data]
 
     def get_reminder(self, reminder_id: str) -> Reminder:
         """
@@ -381,7 +381,7 @@ class iCloudBridge:
             NotFoundError: If the reminder is not found
         """
         data = self._request("GET", f"/reminders/{urllib.parse.quote(reminder_id)}")
-        return Reminder.from_dict(data)
+        return Reminder.from_dict(data, self)
 
     def create_reminder(
         self,
@@ -416,7 +416,7 @@ class iCloudBridge:
             payload["dueDate"] = _format_iso_date(due_date)
 
         data = self._request("POST", f"/lists/{urllib.parse.quote(list_id)}/reminders", payload)
-        return Reminder.from_dict(data)
+        return Reminder.from_dict(data, self)
 
     def update_reminder(
         self,
@@ -457,7 +457,7 @@ class iCloudBridge:
             payload["dueDate"] = _format_iso_date(due_date)
 
         data = self._request("PUT", f"/reminders/{urllib.parse.quote(reminder_id)}", payload)
-        return Reminder.from_dict(data)
+        return Reminder.from_dict(data, self)
 
     def delete_reminder(self, reminder_id: str) -> None:
         """
@@ -509,7 +509,7 @@ class iCloudBridge:
             list[Album]: All albums configured in iCloud Bridge
         """
         data = self._request("GET", "/albums")
-        return [Album.from_dict(item) for item in data]
+        return [Album.from_dict(item, self) for item in data]
 
     def get_album(self, album_id: str) -> Album:
         """
@@ -525,7 +525,7 @@ class iCloudBridge:
             NotFoundError: If the album is not found
         """
         data = self._request("GET", f"/albums/{urllib.parse.quote(album_id)}")
-        return Album.from_dict(data)
+        return Album.from_dict(data, self)
 
     def get_photos(
         self,
@@ -566,7 +566,7 @@ class iCloudBridge:
             path += "?" + "&".join(params)
 
         data = self._request("GET", path)
-        photos = [Photo.from_dict(item) for item in data["photos"]]
+        photos = [Photo.from_dict(item, self) for item in data["photos"]]
         return photos, data["total"]
 
     def get_photo(self, photo_id: str) -> Photo:
@@ -583,7 +583,7 @@ class iCloudBridge:
             NotFoundError: If the photo is not found
         """
         data = self._request("GET", f"/photos/{urllib.parse.quote(photo_id)}")
-        return Photo.from_dict(data)
+        return Photo.from_dict(data, self)
 
     def get_thumbnail(self, photo_id: str, size: str = "medium") -> bytes:
         """
