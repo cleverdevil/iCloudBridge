@@ -186,9 +186,10 @@ class Photo:
     is_hidden: bool
     filename: Optional[str]
     file_size: Optional[int]
+    _client: Optional["iCloudBridge"] = field(default=None, repr=False, compare=False)
 
     @classmethod
-    def from_dict(cls, data: dict) -> Photo:
+    def from_dict(cls, data: dict, client: "iCloudBridge" = None) -> Photo:
         creation_date = _parse_iso_date(data["creationDate"])
 
         modification_date = None
@@ -207,6 +208,7 @@ class Photo:
             is_hidden=data["isHidden"],
             filename=data.get("filename"),
             file_size=data.get("fileSize"),
+            _client=client,
         )
 
 
