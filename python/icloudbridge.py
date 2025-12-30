@@ -91,9 +91,10 @@ class Reminder:
     due_date: Optional[datetime]
     completion_date: Optional[datetime]
     list_id: str
+    _client: Optional["iCloudBridge"] = field(default=None, repr=False, compare=False)
 
     @classmethod
-    def from_dict(cls, data: dict) -> Reminder:
+    def from_dict(cls, data: dict, client: "iCloudBridge" = None) -> Reminder:
         due_date = None
         if data.get("dueDate"):
             due_date = _parse_iso_date(data["dueDate"])
@@ -111,6 +112,7 @@ class Reminder:
             due_date=due_date,
             completion_date=completion_date,
             list_id=data["listId"],
+            _client=client,
         )
 
 
