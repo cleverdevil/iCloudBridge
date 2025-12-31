@@ -160,6 +160,77 @@ class Album:
             _client=client,
         )
 
+    @property
+    def photos(self) -> Iterator[Photo]:
+        """
+        Iterate all photos in the album, auto-paginating.
+
+        Yields:
+            Photo: Each photo in the album
+
+        Raises:
+            RuntimeError: If album was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Album not associated with a client")
+        yield from self._client._iter_photos(self.id)
+
+    @property
+    def videos(self) -> Iterator[Photo]:
+        """
+        Iterate only videos in the album, auto-paginating.
+
+        Yields:
+            Photo: Each video in the album
+
+        Raises:
+            RuntimeError: If album was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Album not associated with a client")
+        yield from self._client._iter_photos(self.id, media_type="video")
+
+    @property
+    def live_photos(self) -> Iterator[Photo]:
+        """
+        Iterate only Live Photos in the album, auto-paginating.
+
+        Yields:
+            Photo: Each Live Photo in the album
+
+        Raises:
+            RuntimeError: If album was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Album not associated with a client")
+        yield from self._client._iter_photos(self.id, media_type="live")
+
+    def get_photos(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        sort: str = "album",
+        media_type: Optional[str] = None
+    ) -> tuple[list[Photo], int]:
+        """
+        Get photos with explicit pagination control.
+
+        Args:
+            limit: Number of photos per page (default: 100)
+            offset: Number of photos to skip (default: 0)
+            sort: Sort order - "album", "date-asc", or "date-desc"
+            media_type: Filter by type - "photo", "video", "live", or "all"
+
+        Returns:
+            tuple[list[Photo], int]: Photos and total count
+
+        Raises:
+            RuntimeError: If album was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Album not associated with a client")
+        return self._client.get_photos(self.id, limit=limit, offset=offset, sort=sort, media_type=media_type)
+
 
 @dataclass
 class Photo:
