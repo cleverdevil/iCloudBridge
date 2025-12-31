@@ -67,6 +67,79 @@ class ReminderList:
             _client=client,
         )
 
+    @property
+    def reminders(self) -> Iterator[Reminder]:
+        """
+        Iterate incomplete reminders in this list.
+
+        Yields:
+            Reminder: Each incomplete reminder
+
+        Raises:
+            RuntimeError: If list was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("ReminderList not associated with a client")
+        yield from self._client._iter_reminders(self.id, include_completed=False)
+
+    @property
+    def all_reminders(self) -> Iterator[Reminder]:
+        """
+        Iterate all reminders including completed.
+
+        Yields:
+            Reminder: Each reminder in the list
+
+        Raises:
+            RuntimeError: If list was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("ReminderList not associated with a client")
+        yield from self._client._iter_reminders(self.id, include_completed=True)
+
+    def get_reminders(self, include_completed: bool = False) -> list[Reminder]:
+        """
+        Get reminders with explicit control.
+
+        Args:
+            include_completed: Whether to include completed reminders
+
+        Returns:
+            list[Reminder]: Reminders in this list
+
+        Raises:
+            RuntimeError: If list was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("ReminderList not associated with a client")
+        return self._client.get_reminders(self.id, include_completed=include_completed)
+
+    def create_reminder(
+        self,
+        title: str,
+        notes: Optional[str] = None,
+        priority: Optional[int] = None,
+        due_date: Optional[datetime] = None,
+    ) -> Reminder:
+        """
+        Create a new reminder in this list.
+
+        Args:
+            title: The reminder title
+            notes: Optional notes/description
+            priority: Priority level (0=none, 1=high, 5=medium, 9=low)
+            due_date: Optional due date
+
+        Returns:
+            Reminder: The created reminder
+
+        Raises:
+            RuntimeError: If list was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("ReminderList not associated with a client")
+        return self._client.create_reminder(self.id, title, notes=notes, priority=priority, due_date=due_date)
+
 
 @dataclass
 class Reminder:
