@@ -37,7 +37,7 @@ import urllib.error
 import urllib.parse
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Iterator, Optional
 
 
 @dataclass
@@ -383,6 +383,21 @@ class iCloudBridge:
         data = self._request("GET", f"/reminders/{urllib.parse.quote(reminder_id)}")
         return Reminder.from_dict(data, self)
 
+    def _iter_reminders(self, list_id: str, include_completed: bool = False) -> Iterator[Reminder]:
+        """
+        Internal iterator for reminders.
+
+        Note: Reminders API doesn't paginate, so this just wraps get_reminders.
+
+        Args:
+            list_id: The list identifier
+            include_completed: Whether to include completed reminders
+
+        Yields:
+            Reminder: Each reminder in the list
+        """
+        yield from self.get_reminders(list_id, include_completed=include_completed)
+
     def create_reminder(
         self,
         list_id: str,
@@ -584,6 +599,32 @@ class iCloudBridge:
         """
         data = self._request("GET", f"/photos/{urllib.parse.quote(photo_id)}")
         return Photo.from_dict(data, self)
+
+    def _iter_photos(
+        self,
+        album_id: str,
+        sort: str = "album",
+        media_type: Optional[str] = None
+    ) -> Iterator[Photo]:
+        """
+        Internal iterator for auto-paginating through photos.
+
+        Args:
+            album_id: The album identifier
+            sort: Sort order
+            media_type: Filter by type
+
+        Yields:
+            Photo: Each photo in the album
+        """
+        offset = 0
+        limit = 100
+        while True:
+            photos, total = self.get_photos(album_id, limit=limit, offset=offset, sort=sort, media_type=media_type)
+            yield from photos
+            offset += limit
+            if offset >= total:
+                break
 
     def get_thumbnail(self, photo_id: str, size: str = "medium") -> bytes:
         """
