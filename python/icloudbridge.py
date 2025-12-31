@@ -286,6 +286,117 @@ class Photo:
             _client=client,
         )
 
+    @property
+    def is_video(self) -> bool:
+        """Check if this is a video."""
+        return self.media_type == "video"
+
+    @property
+    def is_live_photo(self) -> bool:
+        """Check if this is a Live Photo."""
+        return self.media_type == "livePhoto"
+
+    @property
+    def thumbnail_small(self) -> bytes:
+        """
+        Get small (200px) thumbnail.
+
+        Returns:
+            bytes: JPEG image data
+
+        Raises:
+            RuntimeError: If photo was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Photo not associated with a client")
+        return self._client.get_thumbnail(self.id, size="small")
+
+    @property
+    def thumbnail_medium(self) -> bytes:
+        """
+        Get medium (800px) thumbnail.
+
+        Returns:
+            bytes: JPEG image data
+
+        Raises:
+            RuntimeError: If photo was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Photo not associated with a client")
+        return self._client.get_thumbnail(self.id, size="medium")
+
+    @property
+    def image(self) -> bytes:
+        """
+        Get full-resolution image (auto-retries if downloading from iCloud).
+
+        Returns:
+            bytes: Image data
+
+        Raises:
+            RuntimeError: If photo was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Photo not associated with a client")
+        return self._client.get_image(self.id)
+
+    @property
+    def video(self) -> bytes:
+        """
+        Get video data. Works for videos and Live Photos.
+
+        For Live Photos, returns the motion video component.
+
+        Returns:
+            bytes: Video data
+
+        Raises:
+            RuntimeError: If photo was not created by a client
+            APIError: If this is not a video or Live Photo
+        """
+        if self._client is None:
+            raise RuntimeError("Photo not associated with a client")
+        if self.media_type == "video":
+            return self._client.get_video(self.id)
+        else:
+            return self._client.get_live_video(self.id)
+
+    def get_thumbnail(self, size: str = "medium") -> bytes:
+        """
+        Get thumbnail with explicit size control.
+
+        Args:
+            size: "small" (200px) or "medium" (800px)
+
+        Returns:
+            bytes: JPEG image data
+
+        Raises:
+            RuntimeError: If photo was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Photo not associated with a client")
+        return self._client.get_thumbnail(self.id, size=size)
+
+    def get_image(self, wait: bool = False, max_retries: int = 10) -> bytes:
+        """
+        Get full-resolution image with explicit control.
+
+        Args:
+            wait: If True, block until download completes
+            max_retries: Maximum retry attempts for non-blocking mode
+
+        Returns:
+            bytes: Image data
+
+        Raises:
+            RuntimeError: If photo was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Photo not associated with a client")
+        return self._client.get_image(self.id, wait=wait, max_retries=max_retries)
+
 
 class iCloudBridgeError(Exception):
     """Base exception for iCloud Bridge errors."""
