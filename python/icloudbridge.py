@@ -505,14 +505,19 @@ class Photo:
 
         Raises:
             RuntimeError: If photo was not created by a client
-            APIError: If this is not a video or Live Photo
+            ValueError: If this is not a video or Live Photo
         """
         if self._client is None:
             raise RuntimeError("Photo not associated with a client")
         if self.media_type == "video":
             return self._client.get_video(self.id)
-        else:
+        elif self.media_type == "livePhoto":
             return self._client.get_live_video(self.id)
+        else:
+            raise ValueError(
+                f"Cannot get video for media type '{self.media_type}'. "
+                "Only videos and Live Photos have video data."
+            )
 
     def get_thumbnail(self, size: str = "medium") -> bytes:
         """
