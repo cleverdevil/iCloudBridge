@@ -87,6 +87,29 @@ The client raises specific exceptions for different error conditions:
    except iCloudBridgeError as e:
        print(f"Connection error: {e}")
 
+Interactive Objects
+-------------------
+
+Domain objects returned by the client are interactive. You can access related
+data directly from the object:
+
+.. code-block:: python
+
+   # Get an album and iterate its photos
+   album = client.get_albums()[0]
+   for photo in album.photos:
+       print(photo.filename)
+
+   # Get a reminder list and create a reminder
+   lst = client.get_lists()[0]
+   reminder = lst.create_reminder("Buy milk")
+
+   # Complete and delete
+   reminder.complete()
+   reminder.delete()
+
+See :doc:`photos` and :doc:`reminders` for complete examples.
+
 Next Steps
 ----------
 

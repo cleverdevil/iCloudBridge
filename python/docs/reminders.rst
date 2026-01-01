@@ -59,6 +59,26 @@ Get a specific reminder:
    print(f"Notes: {reminder.notes}")
    print(f"Completed: {reminder.is_completed}")
 
+Interactive List Access
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Reminder lists provide direct access to their reminders:
+
+.. code-block:: python
+
+   lst = client.get_lists()[0]
+
+   # Iterate incomplete reminders
+   for r in lst.reminders:
+       print(r.title)
+
+   # Iterate all including completed
+   for r in lst.all_reminders:
+       print(r.title, r.is_completed)
+
+   # Create a reminder directly
+   reminder = lst.create_reminder("Buy groceries", priority=1)
+
 Creating Reminders
 ------------------
 
@@ -112,6 +132,27 @@ Mark as complete or incomplete:
 
    # Or use update_reminder directly
    client.update_reminder(reminder.id, is_completed=True)
+
+Interactive Reminder Updates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Reminders support direct mutation:
+
+.. code-block:: python
+
+   reminder = next(lst.reminders)
+
+   # Modify and save
+   reminder.title = "Updated title"
+   reminder.priority = 5
+   reminder.save()
+
+   # Complete/uncomplete
+   reminder.complete()
+   reminder.uncomplete()
+
+   # Delete
+   reminder.delete()
 
 Deleting Reminders
 ------------------

@@ -43,6 +43,30 @@ smart       Smart album (e.g., "Favorites", "Videos")
 shared      Shared album
 ==========  ===========
 
+Interactive Album Access
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Albums provide direct access to their photos:
+
+.. code-block:: python
+
+   album = client.get_albums()[0]
+
+   # Iterate all photos (lazy, auto-paginates)
+   for photo in album.photos:
+       print(photo.filename)
+
+   # Iterate only videos
+   for video in album.videos:
+       print(video.filename)
+
+   # Iterate only Live Photos
+   for live in album.live_photos:
+       print(live.filename)
+
+   # Explicit pagination when needed
+   batch, total = album.get_photos(limit=50, offset=100)
+
 Browsing Photos
 ---------------
 
@@ -131,6 +155,27 @@ Download full-resolution image:
    If the photo is stored in iCloud and not locally available, the API may
    return a 202 status while downloading. Use ``wait=True`` to block until
    the download completes.
+
+Interactive Photo Downloads
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Photos provide direct download access:
+
+.. code-block:: python
+
+   photo = next(album.photos)
+
+   # Simple property access
+   small_thumb = photo.thumbnail_small
+   medium_thumb = photo.thumbnail_medium
+   full_image = photo.image
+
+   # For videos and Live Photos
+   if photo.is_video or photo.is_live_photo:
+       video_data = photo.video
+
+   # Explicit control when needed
+   img = photo.get_image(wait=True, max_retries=20)
 
 Handling iCloud Downloads
 ~~~~~~~~~~~~~~~~~~~~~~~~~
