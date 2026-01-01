@@ -4,7 +4,7 @@ iCloud Bridge Python Client
 A Python client library for interacting with the iCloud Bridge REST API.
 Uses only the standard library - no external dependencies required.
 
-Usage:
+Basic Usage:
     from icloudbridge import iCloudBridge
 
     client = iCloudBridge()  # defaults to localhost:31337
@@ -15,18 +15,20 @@ Usage:
     # Get reminders from a specific list
     reminders = client.get_reminders(lists[0].id)
 
-    # Create a new reminder
-    reminder = client.create_reminder(
-        list_id=lists[0].id,
-        title="Buy milk",
-        notes="2% preferred"
-    )
+Interactive Objects:
+    Domain objects are interactive and can make API calls directly:
 
-    # Update a reminder
-    client.update_reminder(reminder.id, is_completed=True)
+    # Albums provide access to photos
+    album = client.get_albums()[0]
+    for photo in album.photos:  # auto-paginates
+        print(photo.filename)
+        thumb = photo.thumbnail_medium  # download thumbnail
 
-    # Delete a reminder
-    client.delete_reminder(reminder.id)
+    # Reminder lists provide access to reminders
+    lst = client.get_lists()[0]
+    reminder = lst.create_reminder("Buy milk")
+    reminder.complete()
+    reminder.delete()
 """
 
 from __future__ import annotations
