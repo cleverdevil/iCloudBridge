@@ -188,6 +188,83 @@ class Reminder:
             _client=client,
         )
 
+    def save(self) -> "Reminder":
+        """
+        Save changes to this reminder.
+
+        Sends current values of title, notes, priority, due_date to the API.
+
+        Returns:
+            Reminder: The updated reminder (self is also updated)
+
+        Raises:
+            RuntimeError: If reminder was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Reminder not associated with a client")
+        updated = self._client.update_reminder(
+            self.id,
+            title=self.title,
+            notes=self.notes,
+            priority=self.priority,
+            due_date=self.due_date,
+        )
+        # Update self with response
+        self.title = updated.title
+        self.notes = updated.notes
+        self.is_completed = updated.is_completed
+        self.priority = updated.priority
+        self.due_date = updated.due_date
+        self.completion_date = updated.completion_date
+        return self
+
+    def complete(self) -> "Reminder":
+        """
+        Mark this reminder as completed.
+
+        Returns:
+            Reminder: The updated reminder (self is also updated)
+
+        Raises:
+            RuntimeError: If reminder was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Reminder not associated with a client")
+        updated = self._client.complete_reminder(self.id)
+        self.is_completed = updated.is_completed
+        self.completion_date = updated.completion_date
+        return self
+
+    def uncomplete(self) -> "Reminder":
+        """
+        Mark this reminder as not completed.
+
+        Returns:
+            Reminder: The updated reminder (self is also updated)
+
+        Raises:
+            RuntimeError: If reminder was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Reminder not associated with a client")
+        updated = self._client.uncomplete_reminder(self.id)
+        self.is_completed = updated.is_completed
+        self.completion_date = updated.completion_date
+        return self
+
+    def delete(self) -> None:
+        """
+        Permanently delete this reminder.
+
+        After calling this method, the reminder object should not be used.
+
+        Raises:
+            RuntimeError: If reminder was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Reminder not associated with a client")
+        self._client.delete_reminder(self.id)
+
 
 @dataclass
 class Album:
