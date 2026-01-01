@@ -7,6 +7,8 @@ A Python client for interacting with the iCloud Bridge REST API.
 from .icloudbridge import (
     iCloudBridge,
     connect,
+    Album,
+    Photo,
     Reminder,
     ReminderList,
     iCloudBridgeError,
@@ -17,6 +19,8 @@ from .icloudbridge import (
 __all__ = [
     "iCloudBridge",
     "connect",
+    "Album",
+    "Photo",
     "Reminder",
     "ReminderList",
     "iCloudBridgeError",
