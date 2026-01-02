@@ -18,14 +18,21 @@ Basic Usage:
 Interactive Objects:
     Domain objects are interactive and can make API calls directly:
 
-    # Albums provide access to photos
-    album = client.get_albums()[0]
-    for photo in album.photos:  # auto-paginates
-        print(photo.filename)
-        thumb = photo.thumbnail_medium  # download thumbnail
+    # Iterate albums and their photos
+    for album in client.albums:
+        print(album.title)
+        for photo in album.photos:  # auto-paginates
+            print(photo.filename)
+            thumb = photo.thumbnail_medium  # download thumbnail
 
-    # Reminder lists provide access to reminders
-    lst = client.get_lists()[0]
+    # Iterate reminder lists and manage reminders
+    for lst in client.reminder_lists:
+        print(lst.title)
+        for reminder in lst.reminders:
+            print(reminder.title)
+
+    # Create and manage reminders
+    lst = next(client.reminder_lists)
     reminder = lst.create_reminder("Buy milk")
     reminder.complete()
     reminder.delete()
@@ -652,6 +659,36 @@ class iCloudBridge:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.URLError as e:
             raise iCloudBridgeError(f"Health check failed: {e}")
+
+    # Collection properties
+
+    @property
+    def albums(self) -> Iterator[Album]:
+        """
+        Iterate all available photo albums.
+
+        Yields:
+            Album: Each album configured in iCloud Bridge
+
+        Example:
+            for album in client.albums:
+                print(album.title)
+        """
+        yield from self.get_albums()
+
+    @property
+    def reminder_lists(self) -> Iterator[ReminderList]:
+        """
+        Iterate all available reminder lists.
+
+        Yields:
+            ReminderList: Each reminder list configured in iCloud Bridge
+
+        Example:
+            for lst in client.reminder_lists:
+                print(lst.title)
+        """
+        yield from self.get_lists()
 
     # List operations
 
