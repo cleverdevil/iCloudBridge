@@ -66,6 +66,8 @@ class AppState: ObservableObject {
     @Published var serverPort: Int = 31337
     @Published var serverStatus: ServerStatus = .stopped
     @Published var showingSettings: Bool = false
+    @Published var allowRemoteConnections: Bool = false
+    @Published var apiTokens: [APIToken] = []
 
     let remindersService: RemindersService
     let photosService: PhotosService
@@ -73,6 +75,7 @@ class AppState: ObservableObject {
     private let selectedListIdsKey = "selectedListIds"
     private let selectedAlbumIdsKey = "selectedAlbumIds"
     private let serverPortKey = "serverPort"
+    private let allowRemoteConnectionsKey = "allowRemoteConnections"
 
     init() {
         self.remindersService = RemindersService()
@@ -110,12 +113,14 @@ class AppState: ObservableObject {
         if savedPort > 0 {
             serverPort = savedPort
         }
+        allowRemoteConnections = UserDefaults.standard.bool(forKey: allowRemoteConnectionsKey)
     }
 
     func saveSettings() {
         UserDefaults.standard.set(Array(selectedListIds), forKey: selectedListIdsKey)
         UserDefaults.standard.set(Array(selectedAlbumIds), forKey: selectedAlbumIdsKey)
         UserDefaults.standard.set(serverPort, forKey: serverPortKey)
+        UserDefaults.standard.set(allowRemoteConnections, forKey: allowRemoteConnectionsKey)
     }
 
     // MARK: - List Selection
