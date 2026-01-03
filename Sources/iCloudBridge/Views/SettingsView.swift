@@ -8,6 +8,14 @@ struct SettingsView: View {
     @State private var selectedTab: Tab = .reminders
     @State private var portString: String = ""
     @State private var showingPortError: Bool = false
+    @State private var showingAddToken: Bool = false
+    @State private var newTokenDescription: String = ""
+    @State private var showingTokenCreated: Bool = false
+    @State private var createdToken: String = ""
+    @State private var showingRevokeConfirmation: Bool = false
+    @State private var tokenToRevoke: APIToken?
+
+    let tokenManager: TokenManager
 
     enum Tab: Hashable {
         case reminders
@@ -22,7 +30,7 @@ struct SettingsView: View {
         case .photos:
             return 480
         case .server:
-            return 200
+            return 400
         }
     }
 
@@ -69,7 +77,8 @@ struct SettingsView: View {
     }
 
     private var serverSettingsView: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
+            // Port configuration
             VStack(alignment: .leading, spacing: 8) {
                 Text("Server Port")
                     .font(.headline)
@@ -94,9 +103,137 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Divider()
+
+            // Remote access toggle
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Allow remote connections", isOn: $appState.allowRemoteConnections)
+
+                Text("When enabled, the server binds to all network interfaces. Remote access requires a valid token.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            // Token management (shown when remote enabled)
+            if appState.allowRemoteConnections {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Access Tokens")
+                        .font(.headline)
+
+                    if appState.apiTokens.isEmpty {
+                        Text("No tokens configured. Remote clients won't be able to authenticate.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    } else {
+                        ForEach(appState.apiTokens) { token in
+                            tokenRow(token)
+                        }
+                    }
+
+                    Button("Add Token") {
+                        showingAddToken = true
+                    }
+                }
+            }
+
             Spacer()
         }
         .padding(20)
+        .sheet(isPresented: $showingAddToken) {
+            addTokenSheet
+        }
+        .sheet(isPresented: $showingTokenCreated) {
+            TokenCreatedModal(token: createdToken) {
+                showingTokenCreated = false
+                createdToken = ""
+            }
+        }
+        .alert("Revoke Token", isPresented: $showingRevokeConfirmation, presenting: tokenToRevoke) { token in
+            Button("Cancel", role: .cancel) {}
+            Button("Revoke", role: .destructive) {
+                Task {
+                    await revokeToken(token)
+                }
+            }
+        } message: { token in
+            Text("Revoke token '\(token.description)'? Any clients using this token will stop working.")
+        }
+    }
+
+    private func tokenRow(_ token: APIToken) -> some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text(token.description)
+                    .font(.body)
+                Text("Created \(token.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button("Revoke") {
+                tokenToRevoke = token
+                showingRevokeConfirmation = true
+            }
+            .foregroundColor(.red)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var addTokenSheet: some View {
+        VStack(spacing: 16) {
+            Text("Add Access Token")
+                .font(.headline)
+
+            TextField("Description (e.g., Home Assistant)", text: $newTokenDescription)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 300)
+
+            HStack {
+                Button("Cancel") {
+                    newTokenDescription = ""
+                    showingAddToken = false
+                }
+
+                Button("Create Token") {
+                    Task {
+                        await createToken()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(newTokenDescription.isEmpty)
+            }
+        }
+        .padding(24)
+    }
+
+    private func createToken() async {
+        do {
+            let (token, metadata) = try await tokenManager.createToken(description: newTokenDescription)
+            await MainActor.run {
+                appState.apiTokens.append(metadata)
+                createdToken = token
+                newTokenDescription = ""
+                showingAddToken = false
+                showingTokenCreated = true
+            }
+        } catch {
+            print("Failed to create token: \(error)")
+        }
+    }
+
+    private func revokeToken(_ token: APIToken) async {
+        do {
+            try await tokenManager.revokeToken(id: token.id)
+            await MainActor.run {
+                appState.apiTokens.removeAll { $0.id == token.id }
+            }
+        } catch {
+            print("Failed to revoke token: \(error)")
+        }
     }
 
     private var canSave: Bool {
