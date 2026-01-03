@@ -605,11 +605,13 @@ class iCloudBridge:
     Args:
         host: The hostname of the iCloud Bridge server (default: localhost)
         port: The port number (default: 31337)
+        token: Bearer token for authentication (required for remote connections)
     """
 
-    def __init__(self, host: str = "localhost", port: int = 31337):
+    def __init__(self, host: str = "localhost", port: int = 31337, token: Optional[str] = None):
         self.base_url = f"http://{host}:{port}/api/v1"
         self._health_url = f"http://{host}:{port}/health"
+        self._token = token
 
     def _request(
         self,
@@ -621,6 +623,8 @@ class iCloudBridge:
         url = f"{self.base_url}{path}"
 
         headers = {"Content-Type": "application/json"}
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
         body = None
         if data is not None:
             body = json.dumps(data).encode("utf-8")
