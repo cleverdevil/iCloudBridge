@@ -5,9 +5,18 @@ func configureRoutes(
     remindersService: RemindersService,
     photosService: PhotosService,
     selectedListIds: @escaping () -> [String],
-    selectedAlbumIds: @escaping () -> [String]
+    selectedAlbumIds: @escaping () -> [String],
+    tokenManager: TokenManager,
+    isAuthEnabled: @escaping () -> Bool
 ) throws {
-    let api = app.grouped("api", "v1")
+    // Health check endpoint - always accessible (no auth)
+    app.get("health") { req in
+        return ["status": "ok"]
+    }
+
+    // API routes with authentication middleware
+    let authMiddleware = AuthMiddleware(tokenManager: tokenManager, isAuthEnabled: isAuthEnabled)
+    let api = app.grouped("api", "v1").grouped(authMiddleware)
 
     try api.register(collection: ListsController(
         remindersService: remindersService,
@@ -28,9 +37,4 @@ func configureRoutes(
         photosService: photosService,
         selectedAlbumIds: selectedAlbumIds
     ))
-
-    // Health check endpoint
-    app.get("health") { req in
-        return ["status": "ok"]
-    }
 }
