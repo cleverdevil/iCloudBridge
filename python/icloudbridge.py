@@ -36,6 +36,13 @@ Interactive Objects:
     reminder = lst.create_reminder("Buy milk")
     reminder.complete()
     reminder.delete()
+
+Remote Connections:
+    For remote servers, provide an authentication token:
+
+    client = iCloudBridge(host="192.168.1.100", token="your-token-here")
+    for album in client.albums:
+        print(album.title)
 """
 
 from __future__ import annotations
