@@ -620,6 +620,15 @@ class iCloudBridge:
         self._health_url = f"http://{host}:{port}/health"
         self._token = token
 
+    def _get_headers(self, content_type: Optional[str] = None) -> dict:
+        """Get headers including auth token if set."""
+        headers = {}
+        if content_type:
+            headers["Content-Type"] = content_type
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        return headers
+
     def _request(
         self,
         method: str,
@@ -629,9 +638,7 @@ class iCloudBridge:
         """Make an HTTP request to the API."""
         url = f"{self.base_url}{path}"
 
-        headers = {"Content-Type": "application/json"}
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
+        headers = self._get_headers(content_type="application/json")
         body = None
         if data is not None:
             body = json.dumps(data).encode("utf-8")
@@ -1032,7 +1039,7 @@ class iCloudBridge:
             path += f"?size={size}"
 
         url = f"{self.base_url}{path}"
-        request = urllib.request.Request(url)
+        request = urllib.request.Request(url, headers=self._get_headers())
 
         try:
             with urllib.request.urlopen(request) as response:
@@ -1067,9 +1074,10 @@ class iCloudBridge:
             path += "?wait=true"
 
         url = f"{self.base_url}{path}"
+        headers = self._get_headers()
 
         for attempt in range(max_retries if not wait else 1):
-            request = urllib.request.Request(url)
+            request = urllib.request.Request(url, headers=headers)
 
             try:
                 with urllib.request.urlopen(request) as response:
@@ -1113,7 +1121,7 @@ class iCloudBridge:
         """
         path = f"/photos/{urllib.parse.quote(photo_id)}/video"
         url = f"{self.base_url}{path}"
-        request = urllib.request.Request(url)
+        request = urllib.request.Request(url, headers=self._get_headers())
 
         try:
             with urllib.request.urlopen(request) as response:
@@ -1141,7 +1149,7 @@ class iCloudBridge:
         """
         path = f"/photos/{urllib.parse.quote(photo_id)}/live-video"
         url = f"{self.base_url}{path}"
-        request = urllib.request.Request(url)
+        request = urllib.request.Request(url, headers=self._get_headers())
 
         try:
             with urllib.request.urlopen(request) as response:

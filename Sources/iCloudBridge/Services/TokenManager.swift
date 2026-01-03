@@ -1,9 +1,21 @@
 import Foundation
-import Security
 import CryptoKit
+import Security  // For SecRandomCopyBytes
 
 actor TokenManager {
-    private let serviceName = "com.icloudbridge.api-tokens"
+    private let storageURL: URL
+    private var tokens: [StoredToken] = []
+
+    init() {
+        // Store in Application Support/iCloudBridge/tokens.json
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appDir = appSupport.appendingPathComponent("iCloudBridge", isDirectory: true)
+
+        // Create directory if needed
+        try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
+
+        self.storageURL = appDir.appendingPathComponent("tokens.json")
+    }
 
     /// Generate a cryptographically secure token
     private func generateToken() throws -> String {
@@ -25,128 +37,85 @@ actor TokenManager {
         return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
 
-    /// Store a new token in Keychain, returns the token metadata
+    /// Load tokens from disk
+    private func loadFromDisk() throws {
+        guard FileManager.default.fileExists(atPath: storageURL.path) else {
+            tokens = []
+            return
+        }
+
+        let data = try Data(contentsOf: storageURL)
+        tokens = try JSONDecoder().decode([StoredToken].self, from: data)
+    }
+
+    /// Save tokens to disk
+    private func saveToDisk() throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(tokens)
+        try data.write(to: storageURL, options: .atomic)
+    }
+
+    /// Create a new token, returns the plaintext token and metadata
     func createToken(description: String) throws -> (token: String, metadata: APIToken) {
+        try loadFromDisk()
+
         let token = try generateToken()
         let tokenHash = hashToken(token)
         let metadata = APIToken(description: description)
 
-        let tokenData = TokenData(hash: tokenHash, description: description, createdAt: metadata.createdAt)
-        let jsonData = try JSONEncoder().encode(tokenData)
+        let storedToken = StoredToken(
+            id: metadata.id,
+            hash: tokenHash,
+            description: description,
+            createdAt: metadata.createdAt
+        )
 
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: metadata.id.uuidString,
-            kSecValueData as String: jsonData
-        ]
-
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw TokenError.keychainError(status)
-        }
+        tokens.append(storedToken)
+        try saveToDisk()
 
         return (token, metadata)
     }
 
-    /// Load all token metadata from Keychain
+    /// Load all token metadata
     func loadTokens() throws -> [APIToken] {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecMatchLimit as String: kSecMatchLimitAll,
-            kSecReturnAttributes as String: true,
-            kSecReturnData as String: true
-        ]
-
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        if status == errSecItemNotFound {
-            return []
-        }
-
-        guard status == errSecSuccess,
-              let items = result as? [[String: Any]] else {
-            throw TokenError.keychainError(status)
-        }
-
-        return items.compactMap { item -> APIToken? in
-            guard let accountString = item[kSecAttrAccount as String] as? String,
-                  let id = UUID(uuidString: accountString),
-                  let data = item[kSecValueData as String] as? Data,
-                  let tokenData = try? JSONDecoder().decode(TokenData.self, from: data) else {
-                return nil
-            }
-            return APIToken(id: id, description: tokenData.description, createdAt: tokenData.createdAt)
-        }
+        try loadFromDisk()
+        return tokens.map { APIToken(id: $0.id, description: $0.description, createdAt: $0.createdAt) }
     }
 
     /// Validate a token against stored hashes
     func validateToken(_ token: String) throws -> Bool {
+        try loadFromDisk()
         let providedHash = hashToken(token)
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecMatchLimit as String: kSecMatchLimitAll,
-            kSecReturnData as String: true
-        ]
-
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        if status == errSecItemNotFound {
-            return false
-        }
-
-        guard status == errSecSuccess,
-              let items = result as? [Data] else {
-            throw TokenError.keychainError(status)
-        }
-
-        for data in items {
-            if let tokenData = try? JSONDecoder().decode(TokenData.self, from: data),
-               tokenData.hash == providedHash {
-                return true
-            }
-        }
-
-        return false
+        return tokens.contains { $0.hash == providedHash }
     }
 
     /// Revoke (delete) a token by ID
     func revokeToken(id: UUID) throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: id.uuidString
-        ]
-
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw TokenError.keychainError(status)
-        }
+        try loadFromDisk()
+        tokens.removeAll { $0.id == id }
+        try saveToDisk()
     }
 }
 
-/// Internal structure for Keychain storage
-private struct TokenData: Codable {
+/// Internal structure for file storage
+private struct StoredToken: Codable {
+    let id: UUID
     let hash: String
     let description: String
     let createdAt: Date
 }
 
 enum TokenError: Error, LocalizedError {
-    case keychainError(OSStatus)
     case randomGenerationFailed
+    case storageError(Error)
 
     var errorDescription: String? {
         switch self {
-        case .keychainError(let status):
-            return "Keychain error: \(status)"
         case .randomGenerationFailed:
             return "Failed to generate secure random bytes"
+        case .storageError(let error):
+            return "Storage error: \(error.localizedDescription)"
         }
     }
 }

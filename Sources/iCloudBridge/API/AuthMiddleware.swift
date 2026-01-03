@@ -48,8 +48,18 @@ struct AuthMiddleware: AsyncMiddleware {
             return true
         }
 
-        // Check for IPv6 localhost
+        // Check for IPv6 localhost variants
         if hostname == "::1" || hostname == "0:0:0:0:0:0:0:1" {
+            return true
+        }
+
+        // Check for IPv6-mapped IPv4 localhost (::ffff:127.0.0.1)
+        if hostname.lowercased().hasPrefix("::ffff:127.0.0.1") {
+            return true
+        }
+
+        // Check for bracketed IPv6 (some systems use [::1])
+        if hostname == "[::1]" {
             return true
         }
 
