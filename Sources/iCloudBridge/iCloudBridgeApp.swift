@@ -41,7 +41,7 @@ struct iCloudBridgeApp: App {
 
         // Settings scene - provides native macOS preferences toolbar
         Settings {
-            SettingsView(appState: appState, onSave: startServer)
+            SettingsView(appState: appState, onSave: startServer, tokenManager: tokenManager)
         }
     }
 
@@ -56,6 +56,9 @@ struct iCloudBridgeApp: App {
     }
 
     private func handleLaunch() {
+        // Load API tokens from Keychain
+        loadTokens()
+
         if appState.hasAllPermissions && appState.hasSavedSettings {
             // Returning user with all permissions - auto-start server silently
             startServer()
@@ -138,6 +141,19 @@ struct iCloudBridgeApp: App {
             await serverManager?.stop()
             await MainActor.run {
                 appState.serverStatus = .stopped
+            }
+        }
+    }
+
+    private func loadTokens() {
+        Task {
+            do {
+                let tokens = try await tokenManager.loadTokens()
+                await MainActor.run {
+                    appState.apiTokens = tokens
+                }
+            } catch {
+                print("Failed to load tokens: \(error)")
             }
         }
     }
