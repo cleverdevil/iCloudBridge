@@ -13,6 +13,7 @@ struct iCloudBridgeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
     @State private var serverManager: ServerManager?
+    private let tokenManager = TokenManager()
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
@@ -110,8 +111,10 @@ struct iCloudBridgeApp: App {
                 serverManager = ServerManager(
                     remindersService: appState.remindersService,
                     photosService: appState.photosService,
-                    selectedListIds: { appState.selectedLists },
-                    selectedAlbumIds: { appState.selectedAlbums }
+                    selectedListIds: { [weak appState] in appState?.selectedLists ?? [] },
+                    selectedAlbumIds: { [weak appState] in appState?.selectedAlbums ?? [] },
+                    tokenManager: tokenManager,
+                    allowRemoteConnections: { [weak appState] in appState?.allowRemoteConnections ?? false }
                 )
             } else {
                 await serverManager?.stop()
