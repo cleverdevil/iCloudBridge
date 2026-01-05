@@ -1,14 +1,21 @@
-# iCloud Bridge
+<p align="center">
+  <img src="assets/icon.png" alt="iCloud Bridge" width="128" height="128">
+</p>
 
-A macOS menu bar application that exposes your iCloud Reminders and Photos via a local REST API.
+<h1 align="center">iCloud Bridge</h1>
+
+<p align="center">
+  A macOS menu bar application that exposes your iCloud Reminders and Photos via a REST API.
+</p>
 
 ## Features
 
 - **Reminders API** - Full CRUD access to your reminder lists and items
 - **Photos API** - Browse albums, fetch metadata, thumbnails, and full-resolution images
 - **Native macOS App** - Runs quietly in your menu bar
-- **Python Client** - Ready-to-use Python library for easy integration
-- **Privacy-First** - All data stays local; the API only binds to localhost
+- **Python Client** - Ready-to-use Python library with interactive domain objects
+- **Authentication** - Bearer token authentication for remote access
+- **Privacy-First** - All data stays local; localhost requests require no authentication
 - **Selective Sync** - Choose which lists and albums to expose
 
 ## Requirements
@@ -24,7 +31,7 @@ Download the latest release and move `iCloud Bridge.app` to your Applications fo
 
 ### 2. Grant Permissions
 
-On first launch, you'll be guided through granting access to Reminders and Photos. Both permissions are required for full functionality.
+On first launch, you'll be guided through granting access to Reminders and Photos.
 
 ### 3. Configure
 
@@ -32,10 +39,10 @@ Select which reminder lists and photo albums you want to expose via the API, the
 
 ### 4. Use the API
 
-The API runs on `http://localhost:31337` by default. Test it:
+The API runs on `http://localhost:31337` by default:
 
 ```bash
-curl http://localhost:31337/api/v1/health
+curl http://localhost:31337/health
 # {"status":"ok"}
 
 curl http://localhost:31337/api/v1/lists
@@ -44,8 +51,55 @@ curl http://localhost:31337/api/v1/lists
 
 ## Documentation
 
-- **[REST API Reference](docs/api/)** - Complete API documentation with interactive Swagger UI
+- **[REST API Reference](docs/api/)** - Complete API documentation
 - **[Python Client](python/)** - Python library documentation and examples
+
+## Python Client
+
+Install the client library:
+
+```bash
+pip install ./python
+```
+
+### Interactive Objects
+
+Domain objects are interactive and can make API calls directly:
+
+```python
+from icloudbridge import iCloudBridge
+
+client = iCloudBridge()
+
+# Iterate albums and their photos
+for album in client.albums:
+    print(f"{album.title}: {album.photo_count} photos")
+    for photo in album.photos:  # auto-paginates
+        thumb = photo.thumbnail_medium  # download thumbnail
+        break
+
+# Iterate reminder lists and manage reminders
+for lst in client.reminder_lists:
+    print(f"{lst.title}: {lst.reminder_count} reminders")
+    for reminder in lst.reminders:
+        print(f"  - {reminder.title}")
+
+# Create and manage reminders
+lst = next(client.reminder_lists)
+reminder = lst.create_reminder("Buy milk", notes="2% milk")
+reminder.complete()
+```
+
+### Remote Connections
+
+For remote access, enable "Allow remote connections" in Settings and create an API token:
+
+```python
+client = iCloudBridge(host="192.168.1.100", token="your-token-here")
+
+for album in client.albums:
+    print(album.title)
+```
 
 ## API Overview
 
@@ -74,49 +128,6 @@ curl http://localhost:31337/api/v1/lists
 | `/api/v1/photos/{id}/video` | GET | Get video file |
 | `/api/v1/photos/{id}/live-video` | GET | Get Live Photo video component |
 
-## Python Client
-
-Install the client library:
-
-```bash
-pip install ./python
-```
-
-Quick example:
-
-```python
-from icloudbridge import iCloudBridge
-
-# Connect to the local API
-client = iCloudBridge()
-
-# Get all reminder lists
-lists = client.get_lists()
-for lst in lists:
-    print(f"{lst.title}: {lst.reminder_count} reminders")
-
-# Create a reminder
-reminder = client.create_reminder(
-    list_id=lists[0].id,
-    title="Buy groceries",
-    notes="Milk, eggs, bread"
-)
-
-# Mark it complete
-client.complete_reminder(reminder.id)
-
-# Browse photo albums
-albums = client.get_albums()
-for album in albums:
-    print(f"{album.title}: {album.photo_count} photos")
-
-# Download a photo
-photos, total = client.get_photos(albums[0].id, limit=10)
-image_data = client.get_image(photos[0].id)
-with open("photo.jpg", "wb") as f:
-    f.write(image_data)
-```
-
 ## Building from Source
 
 ### Prerequisites
@@ -127,11 +138,9 @@ with open("photo.jpg", "wb") as f:
 ### Build
 
 ```bash
-# Clone the repository
 git clone https://github.com/cleverdevil/icloudbridge.git
 cd icloudbridge
 
-# Build release version
 swift build -c release
 
 # The binary is at .build/release/iCloudBridge
@@ -140,7 +149,6 @@ swift build -c release
 ### Run
 
 ```bash
-# Run directly
 .build/release/iCloudBridge
 
 # Or use the app bundle
@@ -151,22 +159,28 @@ open iCloudBridge.app
 
 Settings are stored in `~/Library/Preferences` via UserDefaults:
 
-- **Server Port** - Default: 31337 (configurable in Settings)
+- **Server Port** - Default: 31337
+- **Allow Remote Connections** - Enable to bind to all interfaces and require authentication
+- **API Tokens** - Manage bearer tokens for remote access
 - **Selected Lists** - Which reminder lists to expose
 - **Selected Albums** - Which photo albums to expose
+
+API tokens are stored as SHA-256 hashes in `~/Library/Application Support/iCloudBridge/tokens.json`.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    iCloud Bridge                         │
+│                    iCloud Bridge                        │
 ├─────────────────────────────────────────────────────────┤
 │  Menu Bar UI (SwiftUI)                                  │
 │    └── Settings Window                                  │
 │         ├── Onboarding (permissions)                    │
-│         └── List/Album Selection                        │
+│         ├── List/Album Selection                        │
+│         └── Token Management                            │
 ├─────────────────────────────────────────────────────────┤
 │  REST API Server (Vapor)                                │
+│    ├── AuthMiddleware (bearer tokens)                   │
 │    ├── /api/v1/lists/*      → ListsController           │
 │    ├── /api/v1/reminders/*  → RemindersController       │
 │    ├── /api/v1/albums/*     → AlbumsController          │
@@ -174,28 +188,28 @@ Settings are stored in `~/Library/Preferences` via UserDefaults:
 ├─────────────────────────────────────────────────────────┤
 │  Services                                               │
 │    ├── RemindersService (EventKit)                      │
-│    └── PhotosService (Photos.framework)                 │
+│    ├── PhotosService (Photos.framework)                 │
+│    └── TokenManager (authentication)                    │
 ├─────────────────────────────────────────────────────────┤
 │  iCloud (via system frameworks)                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Security Considerations
+## Security
 
-- The API binds only to `localhost` - it is not accessible from other machines
-- No authentication is currently implemented (planned for future releases)
-- The app requests only the minimum required permissions
-- All data remains on your Mac; nothing is sent to external servers
+- **Localhost exempt** - Requests from localhost require no authentication
+- **Remote authentication** - Remote connections require a valid bearer token
+- **Token storage** - Only SHA-256 hashes are stored, never plaintext tokens
+- **Minimal permissions** - The app requests only the minimum required permissions
+- **Local data** - All data remains on your Mac; nothing is sent to external servers
 
 ## Roadmap
 
 Future enhancements under consideration:
 
-- [ ] API authentication (API keys, tokens)
 - [ ] Calendar integration
 - [ ] Contacts integration
 - [ ] Notes integration
-- [ ] Network binding options (for LAN access)
 - [ ] Webhook notifications for changes
 
 ## License
