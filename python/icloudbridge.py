@@ -37,6 +37,27 @@ Interactive Objects:
     reminder.complete()
     reminder.delete()
 
+    # Iterate calendars and their events
+    from datetime import datetime, timedelta
+    for cal in client.calendars:
+        print(cal.title)
+        start = datetime.now()
+        end = start + timedelta(days=7)
+        for event in cal.get_events(start, end):
+            print(f"  {event.start_date}: {event.title}")
+
+    # Create and manage events
+    cal = next(client.calendars)
+    event = cal.create_event(
+        title="Team Lunch",
+        start_date=datetime(2026, 1, 20, 12, 0),
+        end_date=datetime(2026, 1, 20, 13, 0),
+        location="Cafe Roma"
+    )
+    event.title = "Team Dinner"
+    event.save()
+    event.delete()
+
 Remote Connections:
     For remote servers, provide an authentication token:
 
@@ -569,6 +590,327 @@ class Photo:
         return self._client.get_image(self.id, wait=wait, max_retries=max_retries)
 
 
+@dataclass
+class Alarm:
+    """
+    Represents an alarm/alert for a calendar event.
+
+    Attributes:
+        offset_minutes: Minutes before event to trigger alarm (negative = before).
+    """
+    offset_minutes: int
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Alarm":
+        return cls(offset_minutes=data["offsetMinutes"])
+
+    def to_dict(self) -> dict:
+        return {"offsetMinutes": self.offset_minutes}
+
+
+@dataclass
+class RecurrenceRule:
+    """
+    Represents a recurrence rule for a calendar event.
+
+    Attributes:
+        frequency: Recurrence frequency ("daily", "weekly", "monthly", "yearly").
+        interval: Every N periods (1 = every week, 2 = every other week).
+        days_of_week: For weekly recurrence (e.g., ["monday", "wednesday"]).
+        day_of_month: For monthly recurrence on specific day (1-31).
+        end_date: When recurrence stops, or None for forever.
+        occurrence_count: Stop after N occurrences (alternative to end_date).
+    """
+    frequency: str
+    interval: int = 1
+    days_of_week: Optional[list[str]] = None
+    day_of_month: Optional[int] = None
+    end_date: Optional[datetime] = None
+    occurrence_count: Optional[int] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RecurrenceRule":
+        end_date = None
+        if data.get("endDate"):
+            end_date = _parse_iso_date(data["endDate"])
+
+        return cls(
+            frequency=data["frequency"],
+            interval=data.get("interval", 1),
+            days_of_week=data.get("daysOfWeek"),
+            day_of_month=data.get("dayOfMonth"),
+            end_date=end_date,
+            occurrence_count=data.get("occurrenceCount"),
+        )
+
+    def to_dict(self) -> dict:
+        result = {
+            "frequency": self.frequency,
+            "interval": self.interval,
+        }
+        if self.days_of_week is not None:
+            result["daysOfWeek"] = self.days_of_week
+        if self.day_of_month is not None:
+            result["dayOfMonth"] = self.day_of_month
+        if self.end_date is not None:
+            result["endDate"] = _format_iso_date(self.end_date)
+        if self.occurrence_count is not None:
+            result["occurrenceCount"] = self.occurrence_count
+        return result
+
+
+@dataclass
+class Calendar:
+    """
+    Represents a calendar from iCloud.
+
+    Attributes:
+        id: Unique identifier for the calendar.
+        title: Display name of the calendar.
+        color: Hex color code (e.g., "#FF6B6B"), or None if not set.
+        is_read_only: Whether the calendar is read-only (subscribed, holidays, etc.).
+        event_count: Number of events in the next 30 days.
+    """
+    id: str
+    title: str
+    color: Optional[str]
+    is_read_only: bool
+    event_count: int
+    _client: Optional["iCloudBridge"] = field(default=None, repr=False, compare=False)
+
+    @classmethod
+    def from_dict(cls, data: dict, client: "iCloudBridge" = None) -> "Calendar":
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            color=data.get("color"),
+            is_read_only=data["isReadOnly"],
+            event_count=data["eventCount"],
+            _client=client,
+        )
+
+    @property
+    def events(self) -> Iterator["Event"]:
+        """
+        Iterate events in the next 30 days.
+
+        Yields:
+            Event: Each event in the calendar
+
+        Raises:
+            RuntimeError: If calendar was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Calendar not associated with a client")
+        from datetime import timedelta
+        start = datetime.now()
+        end = start + timedelta(days=30)
+        yield from self._client.get_events(self.id, start, end)
+
+    def get_events(self, start: datetime, end: datetime) -> list["Event"]:
+        """
+        Get events in a specific date range.
+
+        Args:
+            start: Start of date range
+            end: End of date range
+
+        Returns:
+            list[Event]: Events in the date range
+
+        Raises:
+            RuntimeError: If calendar was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Calendar not associated with a client")
+        return self._client.get_events(self.id, start, end)
+
+    def create_event(
+        self,
+        title: str,
+        start_date: datetime,
+        end_date: datetime,
+        notes: Optional[str] = None,
+        location: Optional[str] = None,
+        url: Optional[str] = None,
+        is_all_day: bool = False,
+        availability: str = "busy",
+        travel_time: Optional[int] = None,
+        alarms: Optional[list[Alarm]] = None,
+        recurrence_rule: Optional[RecurrenceRule] = None,
+    ) -> "Event":
+        """
+        Create a new event in this calendar.
+
+        Args:
+            title: The event title
+            start_date: Event start date/time
+            end_date: Event end date/time
+            notes: Optional notes/description
+            location: Optional location
+            url: Optional URL
+            is_all_day: Whether this is an all-day event
+            availability: "busy", "free", "tentative", or "unavailable"
+            travel_time: Minutes of travel time before event
+            alarms: List of alarms
+            recurrence_rule: Recurrence rule for repeating events
+
+        Returns:
+            Event: The created event
+
+        Raises:
+            RuntimeError: If calendar was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Calendar not associated with a client")
+        return self._client.create_event(
+            self.id,
+            title=title,
+            start_date=start_date,
+            end_date=end_date,
+            notes=notes,
+            location=location,
+            url=url,
+            is_all_day=is_all_day,
+            availability=availability,
+            travel_time=travel_time,
+            alarms=alarms,
+            recurrence_rule=recurrence_rule,
+        )
+
+
+@dataclass
+class Event:
+    """
+    Represents a calendar event from iCloud.
+
+    Attributes:
+        id: Unique identifier for the event.
+        calendar_id: ID of the calendar containing this event.
+        title: Event title.
+        notes: Additional notes or description, or None.
+        location: Event location, or None.
+        url: Associated URL, or None.
+        start_date: Event start date/time.
+        end_date: Event end date/time.
+        is_all_day: Whether this is an all-day event.
+        availability: Availability status ("busy", "free", "tentative", "unavailable").
+        travel_time: Travel time in minutes, or None.
+        alarms: List of alarms.
+        is_recurring: Whether this is a recurring event.
+        recurrence_rule: Recurrence rule, or None.
+        series_id: ID of master event for recurring series, or None.
+    """
+    id: str
+    calendar_id: str
+    title: str
+    notes: Optional[str]
+    location: Optional[str]
+    url: Optional[str]
+    start_date: datetime
+    end_date: datetime
+    is_all_day: bool
+    availability: str
+    travel_time: Optional[int]
+    alarms: list[Alarm]
+    is_recurring: bool
+    recurrence_rule: Optional[RecurrenceRule]
+    series_id: Optional[str]
+    _client: Optional["iCloudBridge"] = field(default=None, repr=False, compare=False)
+
+    @classmethod
+    def from_dict(cls, data: dict, client: "iCloudBridge" = None) -> "Event":
+        start_date = _parse_iso_date(data["startDate"])
+        end_date = _parse_iso_date(data["endDate"])
+
+        alarms = []
+        if data.get("alarms"):
+            alarms = [Alarm.from_dict(a) for a in data["alarms"]]
+
+        recurrence_rule = None
+        if data.get("recurrenceRule"):
+            recurrence_rule = RecurrenceRule.from_dict(data["recurrenceRule"])
+
+        return cls(
+            id=data["id"],
+            calendar_id=data["calendarId"],
+            title=data["title"],
+            notes=data.get("notes"),
+            location=data.get("location"),
+            url=data.get("url"),
+            start_date=start_date,
+            end_date=end_date,
+            is_all_day=data["isAllDay"],
+            availability=data["availability"],
+            travel_time=data.get("travelTime"),
+            alarms=alarms,
+            is_recurring=data["isRecurring"],
+            recurrence_rule=recurrence_rule,
+            series_id=data.get("seriesId"),
+            _client=client,
+        )
+
+    def save(self, span: str = "thisEvent") -> "Event":
+        """
+        Save changes to this event.
+
+        Args:
+            span: For recurring events - "thisEvent", "futureEvents", or "allEvents"
+
+        Returns:
+            Event: The updated event (self is also updated)
+
+        Raises:
+            RuntimeError: If event was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Event not associated with a client")
+        updated = self._client.update_event(
+            self.id,
+            span=span,
+            title=self.title,
+            notes=self.notes,
+            location=self.location,
+            url=self.url,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            is_all_day=self.is_all_day,
+            availability=self.availability,
+            travel_time=self.travel_time,
+            alarms=self.alarms,
+            recurrence_rule=self.recurrence_rule,
+        )
+        # Update self with response
+        self.title = updated.title
+        self.notes = updated.notes
+        self.location = updated.location
+        self.url = updated.url
+        self.start_date = updated.start_date
+        self.end_date = updated.end_date
+        self.is_all_day = updated.is_all_day
+        self.availability = updated.availability
+        self.travel_time = updated.travel_time
+        self.alarms = updated.alarms
+        self.is_recurring = updated.is_recurring
+        self.recurrence_rule = updated.recurrence_rule
+        self.series_id = updated.series_id
+        return self
+
+    def delete(self, span: str = "thisEvent") -> None:
+        """
+        Delete this event.
+
+        Args:
+            span: For recurring events - "thisEvent", "futureEvents", or "allEvents"
+
+        Raises:
+            RuntimeError: If event was not created by a client
+        """
+        if self._client is None:
+            raise RuntimeError("Event not associated with a client")
+        self._client.delete_event(self.id, span=span)
+
+
 class iCloudBridgeError(Exception):
     """Base exception for iCloud Bridge errors."""
     pass
@@ -707,6 +1049,20 @@ class iCloudBridge:
                 print(lst.title)
         """
         yield from self.get_lists()
+
+    @property
+    def calendars(self) -> Iterator[Calendar]:
+        """
+        Iterate all available calendars.
+
+        Yields:
+            Calendar: Each calendar configured in iCloud Bridge
+
+        Example:
+            for cal in client.calendars:
+                print(cal.title)
+        """
+        yield from self.get_calendars()
 
     # List operations
 
@@ -1161,6 +1517,219 @@ class iCloudBridge:
         except urllib.error.URLError as e:
             raise iCloudBridgeError(f"Connection failed: {e.reason}")
 
+    # Calendar operations
+
+    def get_calendars(self) -> list[Calendar]:
+        """
+        Get all available calendars.
+
+        Returns:
+            list[Calendar]: All calendars configured in iCloud Bridge
+        """
+        data = self._request("GET", "/calendars")
+        return [Calendar.from_dict(item, self) for item in data]
+
+    def get_calendar(self, calendar_id: str) -> Calendar:
+        """
+        Get a specific calendar by ID.
+
+        Args:
+            calendar_id: The calendar identifier
+
+        Returns:
+            Calendar: The requested calendar
+
+        Raises:
+            NotFoundError: If the calendar is not found
+        """
+        data = self._request("GET", f"/calendars/{urllib.parse.quote(calendar_id)}")
+        return Calendar.from_dict(data, self)
+
+    def get_events(self, calendar_id: str, start: datetime, end: datetime) -> list[Event]:
+        """
+        Get events in a calendar within a date range.
+
+        Args:
+            calendar_id: The calendar identifier
+            start: Start of date range
+            end: End of date range
+
+        Returns:
+            list[Event]: Events in the date range
+
+        Raises:
+            NotFoundError: If the calendar is not found
+        """
+        start_str = _format_iso_date(start)
+        end_str = _format_iso_date(end)
+        path = f"/calendars/{urllib.parse.quote(calendar_id)}/events?start={start_str}&end={end_str}"
+        data = self._request("GET", path)
+        return [Event.from_dict(item, self) for item in data]
+
+    def get_event(self, event_id: str) -> Event:
+        """
+        Get a specific event by ID.
+
+        Args:
+            event_id: The event identifier
+
+        Returns:
+            Event: The requested event
+
+        Raises:
+            NotFoundError: If the event is not found
+        """
+        data = self._request("GET", f"/events/{urllib.parse.quote(event_id)}")
+        return Event.from_dict(data, self)
+
+    def create_event(
+        self,
+        calendar_id: str,
+        title: str,
+        start_date: datetime,
+        end_date: datetime,
+        notes: Optional[str] = None,
+        location: Optional[str] = None,
+        url: Optional[str] = None,
+        is_all_day: bool = False,
+        availability: str = "busy",
+        travel_time: Optional[int] = None,
+        alarms: Optional[list[Alarm]] = None,
+        recurrence_rule: Optional[RecurrenceRule] = None,
+    ) -> Event:
+        """
+        Create a new event in a calendar.
+
+        Args:
+            calendar_id: The calendar to create the event in
+            title: The event title
+            start_date: Event start date/time
+            end_date: Event end date/time
+            notes: Optional notes/description
+            location: Optional location
+            url: Optional URL
+            is_all_day: Whether this is an all-day event
+            availability: "busy", "free", "tentative", or "unavailable"
+            travel_time: Minutes of travel time before event
+            alarms: List of alarms
+            recurrence_rule: Recurrence rule for repeating events
+
+        Returns:
+            Event: The created event
+
+        Raises:
+            NotFoundError: If the calendar is not found
+        """
+        payload = {
+            "title": title,
+            "startDate": _format_iso_date(start_date),
+            "endDate": _format_iso_date(end_date),
+            "isAllDay": is_all_day,
+            "availability": availability,
+        }
+        if notes is not None:
+            payload["notes"] = notes
+        if location is not None:
+            payload["location"] = location
+        if url is not None:
+            payload["url"] = url
+        if travel_time is not None:
+            payload["travelTime"] = travel_time
+        if alarms is not None:
+            payload["alarms"] = [a.to_dict() for a in alarms]
+        if recurrence_rule is not None:
+            payload["recurrenceRule"] = recurrence_rule.to_dict()
+
+        data = self._request("POST", f"/calendars/{urllib.parse.quote(calendar_id)}/events", payload)
+        return Event.from_dict(data, self)
+
+    def update_event(
+        self,
+        event_id: str,
+        span: str = "thisEvent",
+        title: Optional[str] = None,
+        notes: Optional[str] = None,
+        location: Optional[str] = None,
+        url: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        is_all_day: Optional[bool] = None,
+        availability: Optional[str] = None,
+        travel_time: Optional[int] = None,
+        alarms: Optional[list[Alarm]] = None,
+        recurrence_rule: Optional[RecurrenceRule] = None,
+    ) -> Event:
+        """
+        Update an existing event.
+
+        Args:
+            event_id: The event to update
+            span: For recurring events - "thisEvent", "futureEvents", or "allEvents"
+            title: New title (if changing)
+            notes: New notes (if changing)
+            location: New location (if changing)
+            url: New URL (if changing)
+            start_date: New start date (if changing)
+            end_date: New end date (if changing)
+            is_all_day: New all-day status (if changing)
+            availability: New availability (if changing)
+            travel_time: New travel time (if changing)
+            alarms: New alarms (if changing)
+            recurrence_rule: New recurrence rule (if changing)
+
+        Returns:
+            Event: The updated event
+
+        Raises:
+            NotFoundError: If the event is not found
+        """
+        payload = {}
+        if title is not None:
+            payload["title"] = title
+        if notes is not None:
+            payload["notes"] = notes
+        if location is not None:
+            payload["location"] = location
+        if url is not None:
+            payload["url"] = url
+        if start_date is not None:
+            payload["startDate"] = _format_iso_date(start_date)
+        if end_date is not None:
+            payload["endDate"] = _format_iso_date(end_date)
+        if is_all_day is not None:
+            payload["isAllDay"] = is_all_day
+        if availability is not None:
+            payload["availability"] = availability
+        if travel_time is not None:
+            payload["travelTime"] = travel_time
+        if alarms is not None:
+            payload["alarms"] = [a.to_dict() for a in alarms]
+        if recurrence_rule is not None:
+            payload["recurrenceRule"] = recurrence_rule.to_dict()
+
+        path = f"/events/{urllib.parse.quote(event_id)}"
+        if span != "thisEvent":
+            path += f"?span={span}"
+
+        data = self._request("PUT", path, payload)
+        return Event.from_dict(data, self)
+
+    def delete_event(self, event_id: str, span: str = "thisEvent") -> None:
+        """
+        Delete an event.
+
+        Args:
+            event_id: The event to delete
+            span: For recurring events - "thisEvent", "futureEvents", or "allEvents"
+
+        Raises:
+            NotFoundError: If the event is not found
+        """
+        path = f"/events/{urllib.parse.quote(event_id)}"
+        if span != "thisEvent":
+            path += f"?span={span}"
+        self._request("DELETE", path)
+
 
 # Convenience function for quick access
 def connect(host: str = "localhost", port: int = 31337) -> iCloudBridge:
@@ -1209,6 +1778,23 @@ if __name__ == "__main__":
             print(f"\nFirst 5 photos in '{albums[0].title}' (total: {total}):")
             for photo in photos:
                 print(f"  - {photo.filename or photo.id} ({photo.width}x{photo.height}, {photo.media_type})")
+
+        # Test Calendars
+        calendars = client.get_calendars()
+        print(f"\nFound {len(calendars)} calendars:")
+        for cal in calendars:
+            read_only = " (read-only)" if cal.is_read_only else ""
+            print(f"  - {cal.title} ({cal.event_count} events){read_only}")
+
+        if calendars:
+            from datetime import timedelta
+            start = datetime.now()
+            end = start + timedelta(days=7)
+            events = client.get_events(calendars[0].id, start, end)
+            print(f"\nNext 7 days of events in '{calendars[0].title}':")
+            for event in events[:5]:  # Limit to 5
+                time_str = event.start_date.strftime("%Y-%m-%d %H:%M")
+                print(f"  - {time_str}: {event.title}")
 
     except iCloudBridgeError as e:
         print(f"Error: {e}")
