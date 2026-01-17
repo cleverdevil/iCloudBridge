@@ -6,6 +6,7 @@ struct OnboardingView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var remindersService: RemindersService
     @ObservedObject var photosService: PhotosService
+    @ObservedObject var calendarsService: CalendarsService
     let onComplete: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -21,7 +22,7 @@ struct OnboardingView: View {
                     .font(.title)
                     .fontWeight(.semibold)
 
-                Text("iCloud Bridge needs access to your Reminders and Photos to expose them via a local API.")
+                Text("iCloud Bridge needs access to your Reminders, Photos, and Calendars to expose them via a local API.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -33,15 +34,21 @@ struct OnboardingView: View {
             Divider()
 
             // Permission Steps
-            VStack(spacing: 16) {
-                remindersStep
-                photosStep
+            ScrollView {
+                VStack(spacing: 16) {
+                    remindersStep
+                    calendarsStep
+                    photosStep
+                }
+                .padding(30)
             }
-            .padding(30)
         }
         .frame(width: 500)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: remindersService.authorizationStatus) { _, _ in
+            checkCompletion()
+        }
+        .onChange(of: calendarsService.authorizationStatus) { _, _ in
             checkCompletion()
         }
         .onChange(of: photosService.authorizationStatus) { _, _ in
@@ -60,13 +67,25 @@ struct OnboardingView: View {
         )
     }
 
+    private var calendarsStep: some View {
+        PermissionStepView(
+            icon: "calendar",
+            title: "Calendars Access",
+            description: "Required to read and manage your calendar events through the API.",
+            status: calendarsStatus,
+            isEnabled: remindersService.authorizationStatus == .fullAccess,
+            action: requestCalendarsAccess,
+            openSettings: openCalendarsSettings
+        )
+    }
+
     private var photosStep: some View {
         PermissionStepView(
             icon: "photo.on.rectangle",
             title: "Photos Access",
             description: "Required to browse albums and serve photos through the API.",
             status: photosStatus,
-            isEnabled: remindersService.authorizationStatus == .fullAccess,
+            isEnabled: remindersService.authorizationStatus == .fullAccess && calendarsService.authorizationStatus == .fullAccess,
             action: requestPhotosAccess,
             openSettings: openPhotosSettings
         )
@@ -74,6 +93,17 @@ struct OnboardingView: View {
 
     private var remindersStatus: PermissionStatus {
         switch remindersService.authorizationStatus {
+        case .fullAccess:
+            return .granted
+        case .denied, .restricted:
+            return .denied
+        default:
+            return .notDetermined
+        }
+    }
+
+    private var calendarsStatus: PermissionStatus {
+        switch calendarsService.authorizationStatus {
         case .fullAccess:
             return .granted
         case .denied, .restricted:
@@ -110,6 +140,12 @@ struct OnboardingView: View {
         }
     }
 
+    private func requestCalendarsAccess() {
+        Task {
+            _ = await calendarsService.requestAccess()
+        }
+    }
+
     private func requestPhotosAccess() {
         Task {
             _ = await photosService.requestAccess()
@@ -118,6 +154,12 @@ struct OnboardingView: View {
 
     private func openRemindersSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func openCalendarsSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
             NSWorkspace.shared.open(url)
         }
     }
