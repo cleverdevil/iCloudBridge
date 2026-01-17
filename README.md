@@ -5,23 +5,24 @@
 <h1 align="center">iCloud Bridge</h1>
 
 <p align="center">
-  A macOS menu bar application that exposes your iCloud Reminders and Photos via a REST API.
+  A macOS menu bar application that exposes your iCloud Reminders, Calendars, and Photos via a REST API.
 </p>
 
 ## Features
 
 - **Reminders API** - Full CRUD access to your reminder lists and items
+- **Calendars API** - Full CRUD access to calendars and events, including recurring events
 - **Photos API** - Browse albums, fetch metadata, thumbnails, and full-resolution images
 - **Native macOS App** - Runs quietly in your menu bar
 - **Python Client** - Ready-to-use Python library with interactive domain objects
 - **Authentication** - Bearer token authentication for remote access
 - **Privacy-First** - All data stays local; localhost requests require no authentication
-- **Selective Sync** - Choose which lists and albums to expose
+- **Selective Sync** - Choose which lists, calendars, and albums to expose
 
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later
-- Reminders and/or Photos permissions granted to the app
+- Reminders, Calendars, and/or Photos permissions granted to the app
 
 ## Quick Start
 
@@ -31,11 +32,11 @@ Download the latest release and move `iCloud Bridge.app` to your Applications fo
 
 ### 2. Grant Permissions
 
-On first launch, you'll be guided through granting access to Reminders and Photos.
+On first launch, you'll be guided through granting access to Reminders, Calendars, and Photos.
 
 ### 3. Configure
 
-Select which reminder lists and photo albums you want to expose via the API, then click "Save & Start Server".
+Select which reminder lists, calendars, and photo albums you want to expose via the API, then click "Save & Start Server".
 
 ### 4. Use the API
 
@@ -47,6 +48,9 @@ curl http://localhost:31337/health
 
 curl http://localhost:31337/api/v1/lists
 # Returns your selected reminder lists
+
+curl http://localhost:31337/api/v1/calendars
+# Returns your selected calendars
 ```
 
 ## Documentation
@@ -88,6 +92,26 @@ for lst in client.reminder_lists:
 lst = next(client.reminder_lists)
 reminder = lst.create_reminder("Buy milk", notes="2% milk")
 reminder.complete()
+
+# Iterate calendars and their events
+from datetime import datetime, timedelta
+for cal in client.calendars:
+    print(f"{cal.title}: {cal.event_count} events")
+    start = datetime.now()
+    end = start + timedelta(days=7)
+    for event in cal.get_events(start, end):
+        print(f"  {event.start_date}: {event.title}")
+
+# Create and manage events
+cal = next(client.calendars)
+event = cal.create_event(
+    title="Team Lunch",
+    start_date=datetime(2026, 1, 20, 12, 0),
+    end_date=datetime(2026, 1, 20, 13, 0),
+    location="Cafe Roma"
+)
+event.title = "Team Dinner"
+event.save()
 ```
 
 ### Remote Connections
@@ -114,6 +138,22 @@ for album in client.albums:
 | `/api/v1/reminders/{id}` | GET | Get a specific reminder |
 | `/api/v1/reminders/{id}` | PUT | Update a reminder |
 | `/api/v1/reminders/{id}` | DELETE | Delete a reminder |
+
+### Calendars
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/calendars` | GET | List all selected calendars |
+| `/api/v1/calendars/{id}` | GET | Get calendar details |
+| `/api/v1/calendars/{id}/events` | GET | Get events in date range (requires `start` and `end` params) |
+| `/api/v1/calendars/{id}/events` | POST | Create a new event |
+| `/api/v1/events/{id}` | GET | Get a specific event |
+| `/api/v1/events/{id}` | PUT | Update an event |
+| `/api/v1/events/{id}` | DELETE | Delete an event |
+
+For recurring events, PUT and DELETE accept an optional `span` query parameter:
+- `thisEvent` (default) - Only this occurrence
+- `futureEvents` - This and all future occurrences
 
 ### Photos
 
@@ -163,6 +203,7 @@ Settings are stored in `~/Library/Preferences` via UserDefaults:
 - **Allow Remote Connections** - Enable to bind to all interfaces and require authentication
 - **API Tokens** - Manage bearer tokens for remote access
 - **Selected Lists** - Which reminder lists to expose
+- **Selected Calendars** - Which calendars to expose
 - **Selected Albums** - Which photo albums to expose
 
 API tokens are stored as SHA-256 hashes in `~/Library/Application Support/iCloudBridge/tokens.json`.
@@ -176,18 +217,21 @@ API tokens are stored as SHA-256 hashes in `~/Library/Application Support/iCloud
 │  Menu Bar UI (SwiftUI)                                  │
 │    └── Settings Window                                  │
 │         ├── Onboarding (permissions)                    │
-│         ├── List/Album Selection                        │
+│         ├── List/Calendar/Album Selection               │
 │         └── Token Management                            │
 ├─────────────────────────────────────────────────────────┤
 │  REST API Server (Vapor)                                │
 │    ├── AuthMiddleware (bearer tokens)                   │
 │    ├── /api/v1/lists/*      → ListsController           │
 │    ├── /api/v1/reminders/*  → RemindersController       │
+│    ├── /api/v1/calendars/*  → CalendarsController       │
+│    ├── /api/v1/events/*     → EventsController          │
 │    ├── /api/v1/albums/*     → AlbumsController          │
 │    └── /api/v1/photos/*     → PhotosController          │
 ├─────────────────────────────────────────────────────────┤
 │  Services                                               │
 │    ├── RemindersService (EventKit)                      │
+│    ├── CalendarsService (EventKit)                      │
 │    ├── PhotosService (Photos.framework)                 │
 │    └── TokenManager (authentication)                    │
 ├─────────────────────────────────────────────────────────┤
@@ -207,7 +251,7 @@ API tokens are stored as SHA-256 hashes in `~/Library/Application Support/iCloud
 
 Future enhancements under consideration:
 
-- [ ] Calendar integration
+- [x] Calendar integration
 - [ ] Contacts integration
 - [ ] Notes integration
 - [ ] Webhook notifications for changes
