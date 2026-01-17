@@ -5,23 +5,29 @@ actor ServerManager {
     private var app: Application?
     private let remindersService: RemindersService
     private let photosService: PhotosService
+    private let calendarsService: CalendarsService
     private let selectedListIds: () -> [String]
     private let selectedAlbumIds: () -> [String]
+    private let selectedCalendarIds: () -> [String]
     let tokenManager: TokenManager
     private let allowRemoteConnections: () -> Bool
 
     init(
         remindersService: RemindersService,
         photosService: PhotosService,
+        calendarsService: CalendarsService,
         selectedListIds: @escaping () -> [String],
         selectedAlbumIds: @escaping () -> [String],
+        selectedCalendarIds: @escaping () -> [String],
         tokenManager: TokenManager,
         allowRemoteConnections: @escaping () -> Bool
     ) {
         self.remindersService = remindersService
         self.photosService = photosService
+        self.calendarsService = calendarsService
         self.selectedListIds = selectedListIds
         self.selectedAlbumIds = selectedAlbumIds
+        self.selectedCalendarIds = selectedCalendarIds
         self.tokenManager = tokenManager
         self.allowRemoteConnections = allowRemoteConnections
     }
@@ -57,8 +63,10 @@ actor ServerManager {
             newApp,
             remindersService: remindersService,
             photosService: photosService,
+            calendarsService: calendarsService,
             selectedListIds: selectedListIds,
             selectedAlbumIds: selectedAlbumIds,
+            selectedCalendarIds: selectedCalendarIds,
             tokenManager: tokenManager,
             isAuthEnabled: allowRemoteConnections
         )
