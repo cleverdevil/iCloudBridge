@@ -51,6 +51,7 @@ struct iCloudBridgeApp: App {
             Image(systemName: statusIcon)
             Text("iCloud Bridge")
         }
+        .fixedSize()
         .onAppear {
             handleLaunch()
         }

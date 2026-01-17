@@ -72,6 +72,8 @@ class RemindersService: ObservableObject {
     func requestAccess() async -> Bool {
         do {
             let granted = try await eventStore.requestFullAccessToReminders()
+            // Force UI update by explicitly notifying observers
+            objectWillChange.send()
             updateAuthorizationStatus()
             if granted {
                 loadLists()

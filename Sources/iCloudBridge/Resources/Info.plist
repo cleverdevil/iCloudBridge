@@ -2,13 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.cleverdevil.iCloudBridge</string>
+    <key>CFBundleName</key>
+    <string>iCloud Bridge</string>
+    <key>CFBundleDisplayName</key>
+    <string>iCloud Bridge</string>
+    <key>CFBundleExecutable</key>
+    <string>iCloudBridge</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>NSRemindersUsageDescription</key>
     <string>iCloud Bridge needs access to Reminders to expose them via the REST API.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>iCloud Bridge needs access to Photos to expose albums via the REST API.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>iCloud Bridge needs access to Calendars to expose them via the REST API.</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
 </dict>
 </plist>

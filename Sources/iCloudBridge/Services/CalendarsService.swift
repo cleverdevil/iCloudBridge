@@ -74,11 +74,21 @@ class CalendarsService: ObservableObject {
     func requestAccess() async -> Bool {
         do {
             let granted = try await eventStore.requestFullAccessToEvents()
-            updateAuthorizationStatus()
-            if granted {
-                loadCalendars()
-            }
             log("Calendar access request result: \(granted)")
+
+            // Force UI update by explicitly notifying observers
+            objectWillChange.send()
+
+            // Directly set the status based on the return value since
+            // EKEventStore.authorizationStatus(for:) can lag behind
+            if granted {
+                authorizationStatus = .fullAccess
+                loadCalendars()
+            } else {
+                updateAuthorizationStatus()
+            }
+
+            log("Calendar authorization status after grant: \(authorizationStatus.rawValue)")
             return granted
         } catch {
             log("Failed to request calendar access: \(error)")
