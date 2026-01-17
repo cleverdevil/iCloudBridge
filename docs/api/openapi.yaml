@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: iCloud Bridge API
   description: |
-    REST API for accessing iCloud Reminders and Photos on macOS.
+    REST API for accessing iCloud Reminders, Calendars, and Photos on macOS.
 
     The API runs locally on your Mac and provides programmatic access to your
     iCloud data through the native macOS frameworks (EventKit and Photos).
@@ -42,6 +42,10 @@ tags:
     description: Reminder lists management
   - name: Reminders
     description: Individual reminder operations
+  - name: Calendars
+    description: Calendar management
+  - name: Events
+    description: Calendar event operations
   - name: Albums
     description: Photo album management
   - name: Photos
@@ -269,6 +273,267 @@ paths:
           description: Reminder deleted successfully
         '404':
           description: Reminder not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============ CALENDARS ============
+  /calendars:
+    get:
+      tags:
+        - Calendars
+      summary: Get all calendars
+      description: Returns all calendars that have been selected in the app settings
+      operationId: getCalendars
+      responses:
+        '200':
+          description: List of calendars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Calendar'
+
+  /calendars/{calendarId}:
+    get:
+      tags:
+        - Calendars
+      summary: Get a specific calendar
+      description: Returns details for a single calendar
+      operationId: getCalendar
+      parameters:
+        - name: calendarId
+          in: path
+          required: true
+          description: The unique identifier of the calendar
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Calendar details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Calendar'
+        '404':
+          description: Calendar not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /calendars/{calendarId}/events:
+    get:
+      tags:
+        - Calendars
+      summary: Get events in a calendar
+      description: |
+        Returns events in the specified calendar within a date range.
+        Both start and end parameters are required. EventKit automatically
+        expands recurring events into individual occurrences.
+      operationId: getEventsInCalendar
+      parameters:
+        - name: calendarId
+          in: path
+          required: true
+          description: The unique identifier of the calendar
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: true
+          description: Start of date range (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00Z"
+        - name: end
+          in: query
+          required: true
+          description: End of date range (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-31T23:59:59Z"
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+        '400':
+          description: Missing required date parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Calendar not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Calendars
+      summary: Create a new event
+      description: Creates a new event in the specified calendar
+      operationId: createEvent
+      parameters:
+        - name: calendarId
+          in: path
+          required: true
+          description: The unique identifier of the calendar
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvent'
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid request body or read-only calendar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Calendar not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============ EVENTS ============
+  /events/{eventId}:
+    get:
+      tags:
+        - Events
+      summary: Get a specific event
+      description: Returns details for a single event
+      operationId: getEvent
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          description: The unique identifier of the event
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Events
+      summary: Update an event
+      description: |
+        Updates an existing event. All fields are optional; only provided fields will be updated.
+        For recurring events, use the span parameter to control which occurrences are affected.
+      operationId: updateEvent
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          description: The unique identifier of the event
+          schema:
+            type: string
+        - name: span
+          in: query
+          required: false
+          description: For recurring events, which occurrences to update
+          schema:
+            type: string
+            enum:
+              - thisEvent
+              - futureEvents
+            default: thisEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEvent'
+      responses:
+        '200':
+          description: Event updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid request or read-only calendar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Events
+      summary: Delete an event
+      description: |
+        Permanently deletes an event. For recurring events, use the span
+        parameter to control which occurrences are deleted.
+      operationId: deleteEvent
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          description: The unique identifier of the event
+          schema:
+            type: string
+        - name: span
+          in: query
+          required: false
+          description: For recurring events, which occurrences to delete
+          schema:
+            type: string
+            enum:
+              - thisEvent
+              - futureEvents
+            default: thisEvent
+      responses:
+        '204':
+          description: Event deleted successfully
+        '400':
+          description: Read-only calendar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
           content:
             application/json:
               schema:
@@ -722,6 +987,286 @@ components:
           nullable: true
           description: New due date
           example: "2024-12-31T14:00:00Z"
+
+    Calendar:
+      type: object
+      required:
+        - id
+        - title
+        - isReadOnly
+        - eventCount
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the calendar
+          example: "CAL123-ABC"
+        title:
+          type: string
+          description: Display name of the calendar
+          example: "Work"
+        color:
+          type: string
+          nullable: true
+          description: Hex color code for the calendar
+          example: "#FF6B6B"
+        isReadOnly:
+          type: boolean
+          description: Whether the calendar is read-only (subscribed, holidays, etc.)
+          example: false
+        eventCount:
+          type: integer
+          description: Number of events in the next 30 days
+          example: 12
+
+    Event:
+      type: object
+      required:
+        - id
+        - calendarId
+        - title
+        - startDate
+        - endDate
+        - isAllDay
+        - availability
+        - isRecurring
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the event
+          example: "EVT123-ABC"
+        calendarId:
+          type: string
+          description: ID of the calendar containing this event
+          example: "CAL123-ABC"
+        title:
+          type: string
+          description: Event title
+          example: "Team Meeting"
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+          example: "Weekly sync"
+        location:
+          type: string
+          nullable: true
+          description: Event location
+          example: "Conference Room A"
+        url:
+          type: string
+          nullable: true
+          description: Associated URL
+          example: "https://meet.example.com/team"
+        startDate:
+          type: string
+          format: date-time
+          description: Event start date/time
+          example: "2026-01-20T10:00:00Z"
+        endDate:
+          type: string
+          format: date-time
+          description: Event end date/time
+          example: "2026-01-20T11:00:00Z"
+        isAllDay:
+          type: boolean
+          description: Whether this is an all-day event
+          example: false
+        availability:
+          type: string
+          enum:
+            - busy
+            - free
+            - tentative
+            - unavailable
+          description: Availability status
+          example: "busy"
+        travelTime:
+          type: integer
+          nullable: true
+          description: Travel time in minutes before event
+          example: 15
+        alarms:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alarm'
+        isRecurring:
+          type: boolean
+          description: Whether this is a recurring event
+          example: false
+        recurrenceRule:
+          $ref: '#/components/schemas/RecurrenceRule'
+        seriesId:
+          type: string
+          nullable: true
+          description: ID of master event for recurring series
+          example: "EVT-MASTER-123"
+
+    Alarm:
+      type: object
+      required:
+        - offsetMinutes
+      properties:
+        offsetMinutes:
+          type: integer
+          description: Minutes before event to trigger alarm (negative = before)
+          example: -15
+
+    RecurrenceRule:
+      type: object
+      nullable: true
+      required:
+        - frequency
+        - interval
+      properties:
+        frequency:
+          type: string
+          enum:
+            - daily
+            - weekly
+            - monthly
+            - yearly
+          description: Recurrence frequency
+          example: "weekly"
+        interval:
+          type: integer
+          description: Every N periods (1 = every week, 2 = every other week)
+          example: 1
+        daysOfWeek:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum:
+              - sunday
+              - monday
+              - tuesday
+              - wednesday
+              - thursday
+              - friday
+              - saturday
+          description: For weekly recurrence
+          example: ["monday", "wednesday", "friday"]
+        dayOfMonth:
+          type: integer
+          nullable: true
+          description: For monthly recurrence on specific day (1-31)
+          example: 15
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: When recurrence stops
+          example: "2026-12-31T00:00:00Z"
+        occurrenceCount:
+          type: integer
+          nullable: true
+          description: Stop after N occurrences (alternative to endDate)
+          example: 10
+
+    CreateEvent:
+      type: object
+      required:
+        - title
+        - startDate
+        - endDate
+      properties:
+        title:
+          type: string
+          description: Event title
+          example: "Team Meeting"
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+        location:
+          type: string
+          nullable: true
+          description: Event location
+        url:
+          type: string
+          nullable: true
+          description: Associated URL
+        startDate:
+          type: string
+          format: date-time
+          description: Event start date/time
+          example: "2026-01-20T10:00:00Z"
+        endDate:
+          type: string
+          format: date-time
+          description: Event end date/time
+          example: "2026-01-20T11:00:00Z"
+        isAllDay:
+          type: boolean
+          default: false
+          description: Whether this is an all-day event
+        availability:
+          type: string
+          enum:
+            - busy
+            - free
+            - tentative
+            - unavailable
+          default: busy
+          description: Availability status
+        travelTime:
+          type: integer
+          nullable: true
+          description: Travel time in minutes before event
+        alarms:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alarm'
+        recurrenceRule:
+          $ref: '#/components/schemas/RecurrenceRule'
+
+    UpdateEvent:
+      type: object
+      properties:
+        title:
+          type: string
+          description: New event title
+        notes:
+          type: string
+          nullable: true
+          description: New notes
+        location:
+          type: string
+          nullable: true
+          description: New location
+        url:
+          type: string
+          nullable: true
+          description: New URL
+        startDate:
+          type: string
+          format: date-time
+          description: New start date/time
+        endDate:
+          type: string
+          format: date-time
+          description: New end date/time
+        isAllDay:
+          type: boolean
+          description: New all-day status
+        availability:
+          type: string
+          enum:
+            - busy
+            - free
+            - tentative
+            - unavailable
+          description: New availability status
+        travelTime:
+          type: integer
+          nullable: true
+          description: New travel time in minutes
+        alarms:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alarm'
+        recurrenceRule:
+          $ref: '#/components/schemas/RecurrenceRule'
 
     Album:
       type: object

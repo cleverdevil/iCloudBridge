@@ -44,6 +44,22 @@ The port (31337) is configurable in the app settings.
 | PUT | `/reminders/{id}` | Update a reminder |
 | DELETE | `/reminders/{id}` | Delete a reminder |
 
+#### Calendars
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/calendars` | Get all calendars |
+| GET | `/calendars/{id}` | Get calendar details |
+| GET | `/calendars/{id}/events?start=&end=` | Get events in date range |
+| POST | `/calendars/{id}/events` | Create an event |
+| GET | `/events/{id}` | Get an event |
+| PUT | `/events/{id}?span=` | Update an event |
+| DELETE | `/events/{id}?span=` | Delete an event |
+
+For recurring events, the `span` parameter controls which occurrences are affected:
+- `thisEvent` (default) - Only this occurrence
+- `futureEvents` - This and all future occurrences
+
 #### Photos
 
 | Method | Endpoint | Description |
@@ -83,6 +99,32 @@ curl "http://localhost:31337/api/v1/albums/{albumId}/photos?limit=50&offset=0&so
 
 ```bash
 curl http://localhost:31337/api/v1/photos/{photoId}/image -o photo.jpg
+```
+
+### Get events in a date range
+
+```bash
+curl "http://localhost:31337/api/v1/calendars/{calendarId}/events?start=2026-01-01T00:00:00Z&end=2026-01-31T23:59:59Z"
+```
+
+### Create an event
+
+```bash
+curl -X POST http://localhost:31337/api/v1/calendars/{calendarId}/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Team Meeting",
+    "startDate": "2026-01-20T10:00:00Z",
+    "endDate": "2026-01-20T11:00:00Z",
+    "location": "Conference Room A",
+    "alarms": [{"offsetMinutes": -15}]
+  }'
+```
+
+### Delete a recurring event (this and future)
+
+```bash
+curl -X DELETE "http://localhost:31337/api/v1/events/{eventId}?span=futureEvents"
 ```
 
 ## Error Responses
