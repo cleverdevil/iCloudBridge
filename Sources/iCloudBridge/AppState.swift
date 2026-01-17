@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import EventKit
 
 enum ServerStatus: Equatable {
     case stopped
@@ -17,6 +18,7 @@ enum ServerStatus: Equatable {
 class AppState: ObservableObject {
     @Published var selectedListIds: Set<String> = []
     @Published var selectedAlbumIds: Set<String> = []
+    @Published var selectedCalendarIds: Set<String> = []
 
     @AppStorage("photosCollapsedSections") private var collapsedSectionsData: Data = Data()
     @AppStorage("photosExpandedFolders") private var expandedFoldersData: Data = Data()
@@ -71,33 +73,41 @@ class AppState: ObservableObject {
 
     let remindersService: RemindersService
     let photosService: PhotosService
+    let calendarsService: CalendarsService
 
     private let selectedListIdsKey = "selectedListIds"
     private let selectedAlbumIdsKey = "selectedAlbumIds"
+    private let selectedCalendarIdsKey = "selectedCalendarIds"
     private let serverPortKey = "serverPort"
     private let allowRemoteConnectionsKey = "allowRemoteConnections"
 
     init() {
         self.remindersService = RemindersService()
         self.photosService = PhotosService()
+        self.calendarsService = CalendarsService()
         loadSettings()
     }
 
     var hasValidSettings: Bool {
-        return !selectedListIds.isEmpty
+        return !selectedListIds.isEmpty || !selectedCalendarIds.isEmpty
     }
 
     var hasAllPermissions: Bool {
         remindersService.authorizationStatus == .fullAccess &&
-        photosService.authorizationStatus == .authorized
+        photosService.authorizationStatus == .authorized &&
+        calendarsService.authorizationStatus == .fullAccess
     }
 
     var hasSavedSettings: Bool {
-        !selectedListIds.isEmpty || !selectedAlbumIds.isEmpty
+        !selectedListIds.isEmpty || !selectedAlbumIds.isEmpty || !selectedCalendarIds.isEmpty
     }
 
     var selectedLists: [String] {
         return Array(selectedListIds)
+    }
+
+    var selectedCalendars: [String] {
+        return Array(selectedCalendarIds)
     }
 
     // MARK: - Persistence
@@ -109,6 +119,9 @@ class AppState: ObservableObject {
         if let savedAlbumIds = UserDefaults.standard.array(forKey: selectedAlbumIdsKey) as? [String] {
             selectedAlbumIds = Set(savedAlbumIds)
         }
+        if let savedCalendarIds = UserDefaults.standard.array(forKey: selectedCalendarIdsKey) as? [String] {
+            selectedCalendarIds = Set(savedCalendarIds)
+        }
         let savedPort = UserDefaults.standard.integer(forKey: serverPortKey)
         if savedPort > 0 {
             serverPort = savedPort
@@ -119,6 +132,7 @@ class AppState: ObservableObject {
     func saveSettings() {
         UserDefaults.standard.set(Array(selectedListIds), forKey: selectedListIdsKey)
         UserDefaults.standard.set(Array(selectedAlbumIds), forKey: selectedAlbumIdsKey)
+        UserDefaults.standard.set(Array(selectedCalendarIds), forKey: selectedCalendarIdsKey)
         UserDefaults.standard.set(serverPort, forKey: serverPortKey)
         UserDefaults.standard.set(allowRemoteConnections, forKey: allowRemoteConnectionsKey)
     }
@@ -153,5 +167,19 @@ class AppState: ObservableObject {
 
     var selectedAlbums: [String] {
         return Array(selectedAlbumIds)
+    }
+
+    // MARK: - Calendar Selection
+
+    func toggleCalendar(_ id: String) {
+        if selectedCalendarIds.contains(id) {
+            selectedCalendarIds.remove(id)
+        } else {
+            selectedCalendarIds.insert(id)
+        }
+    }
+
+    func isCalendarSelected(_ id: String) -> Bool {
+        return selectedCalendarIds.contains(id)
     }
 }
