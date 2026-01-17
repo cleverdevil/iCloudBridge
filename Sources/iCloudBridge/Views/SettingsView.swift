@@ -19,6 +19,7 @@ struct SettingsView: View {
 
     enum Tab: Hashable {
         case reminders
+        case calendars
         case photos
         case server
     }
@@ -26,6 +27,8 @@ struct SettingsView: View {
     private var contentHeight: CGFloat {
         switch selectedTab {
         case .reminders:
+            return 320
+        case .calendars:
             return 320
         case .photos:
             return 480
@@ -41,6 +44,12 @@ struct SettingsView: View {
                     .tag(Tab.reminders)
                     .tabItem {
                         Label("Reminders", systemImage: "list.bullet.clipboard")
+                    }
+
+                CalendarsSettingsView(appState: appState)
+                    .tag(Tab.calendars)
+                    .tabItem {
+                        Label("Calendars", systemImage: "calendar")
                     }
 
                 PhotosSettingsView(appState: appState)
@@ -239,7 +248,8 @@ struct SettingsView: View {
     private var canSave: Bool {
         let hasLists = !appState.selectedListIds.isEmpty
         let hasAlbums = !appState.selectedAlbumIds.isEmpty
-        return (hasLists || hasAlbums) && isValidPort
+        let hasCalendars = !appState.selectedCalendarIds.isEmpty
+        return (hasLists || hasAlbums || hasCalendars) && isValidPort
     }
 
     private var isValidPort: Bool {
