@@ -33,6 +33,7 @@ struct iCloudBridgeApp: App {
                 appState: appState,
                 remindersService: appState.remindersService,
                 photosService: appState.photosService,
+                calendarsService: appState.calendarsService,
                 onComplete: handleOnboardingComplete
             )
         }
@@ -75,6 +76,7 @@ struct iCloudBridgeApp: App {
         // Reload data now that we have permissions
         appState.remindersService.loadLists()
         appState.photosService.loadAlbums()
+        appState.calendarsService.loadCalendars()
 
         if appState.hasSavedSettings {
             // Has saved settings - start server
@@ -114,8 +116,10 @@ struct iCloudBridgeApp: App {
                 serverManager = ServerManager(
                     remindersService: appState.remindersService,
                     photosService: appState.photosService,
+                    calendarsService: appState.calendarsService,
                     selectedListIds: { [weak appState] in appState?.selectedLists ?? [] },
                     selectedAlbumIds: { [weak appState] in appState?.selectedAlbums ?? [] },
+                    selectedCalendarIds: { [weak appState] in appState?.selectedCalendars ?? [] },
                     tokenManager: tokenManager,
                     allowRemoteConnections: { [weak appState] in appState?.allowRemoteConnections ?? false }
                 )
@@ -238,6 +242,12 @@ struct MenuBarContentView: View {
 
                 if !appState.selectedAlbumIds.isEmpty {
                     Text("\(appState.selectedAlbumIds.count) albums selected")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                if !appState.selectedCalendarIds.isEmpty {
+                    Text("\(appState.selectedCalendarIds.count) calendars selected")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
