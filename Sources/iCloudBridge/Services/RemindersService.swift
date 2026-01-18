@@ -72,13 +72,20 @@ class RemindersService: ObservableObject {
     func requestAccess() async -> Bool {
         do {
             let granted = try await eventStore.requestFullAccessToReminders()
+            log("Access request result: \(granted)")
+
             // Force UI update by explicitly notifying observers
             objectWillChange.send()
-            updateAuthorizationStatus()
+
+            // Directly set the status based on the return value since
+            // EKEventStore.authorizationStatus(for:) can lag behind
             if granted {
+                authorizationStatus = .fullAccess
                 loadLists()
+            } else {
+                updateAuthorizationStatus()
             }
-            log("Access request result: \(granted)")
+
             return granted
         } catch {
             log("Failed to request access: \(error)")

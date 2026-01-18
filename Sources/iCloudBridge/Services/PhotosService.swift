@@ -79,66 +79,79 @@ class PhotosService: ObservableObject {
 
     func requestAccess() async -> Bool {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-        await MainActor.run {
-            updateAuthorizationStatus()
-            if status == .authorized {
-                loadAlbums()
+        let granted = status == .authorized
+
+        // Force UI update by explicitly notifying observers
+        objectWillChange.send()
+
+        // Directly set the status based on the return value since
+        // PHPhotoLibrary.authorizationStatus can lag behind
+        if granted {
+            authorizationStatus = .authorized
+            // Load albums in background to avoid blocking UI
+            Task.detached { [weak self] in
+                let hierarchy = Self.loadAlbumsInBackground()
+                await self?.setAlbumHierarchy(hierarchy)
             }
+        } else {
+            updateAuthorizationStatus()
         }
-        return status == .authorized
+
+        return granted
     }
 
-    func loadAlbums() {
+    private func setAlbumHierarchy(_ hierarchy: AlbumHierarchy) {
+        self.albumHierarchy = hierarchy
+    }
+
+    /// Loads albums on a background thread - this is nonisolated to avoid blocking MainActor
+    private nonisolated static func loadAlbumsInBackground() -> AlbumHierarchy {
         var hierarchy = AlbumHierarchy()
+
+        // Helper to check legacy album titles
+        func isLegacyAlbumTitle(_ title: String) -> Bool {
+            let datePattern = "^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{1,2}, \\d{4}( \\(\\d+\\))?$"
+            if title.range(of: datePattern, options: .regularExpression) != nil {
+                return true
+            }
+            let normalizedTitle = title.replacingOccurrences(of: "\u{00A0}", with: " ")
+            if normalizedTitle.localizedCaseInsensitiveContains("Photo Stream") {
+                return true
+            }
+            if title.range(of: "^Roll \\d+$", options: .regularExpression) != nil {
+                return true
+            }
+            return false
+        }
+
+        func makeAlbumItem(from collection: PHAssetCollection) -> AlbumItem? {
+            let count = PHAsset.fetchAssets(in: collection, options: nil).count
+            guard count > 0 else { return nil }
+            return AlbumItem(collection: collection, photoCount: count)
+        }
 
         // 1. Fetch top-level user collections
         let topLevelCollections = PHCollectionList.fetchTopLevelUserCollections(with: nil)
 
         topLevelCollections.enumerateObjects { collection, _, _ in
             if let album = collection as? PHAssetCollection {
-                // Top-level album
-                if let item = self.makeAlbumItem(from: album) {
+                if let item = makeAlbumItem(from: album) {
                     hierarchy.myAlbums.append(item)
                 }
             } else if let folder = collection as? PHCollectionList {
-                // Folder - fetch its contents
                 var folderAlbums: [AlbumItem] = []
                 let contents = PHCollection.fetchCollections(in: folder, options: nil)
-                // Log folder contents for debugging
-                let logURL = FileManager.default.homeDirectoryForCurrentUser
-                    .appendingPathComponent("Library/Logs/iCloudBridge")
-                let logFile = logURL.appendingPathComponent("albums-debug.log")
-                try? FileManager.default.createDirectory(at: logURL, withIntermediateDirectories: true)
-                var logLines: [String] = ["=== Folder: \(folder.localizedTitle ?? "Unknown") ==="]
 
                 contents.enumerateObjects { nested, _, _ in
                     if let nestedAlbum = nested as? PHAssetCollection {
                         let title = nestedAlbum.localizedTitle ?? ""
-                        let isLegacy = self.isLegacyAlbumTitle(title)
-                        logLines.append("[\(isLegacy ? "FILTERED" : "KEPT")] \"\(title)\"")
-
-                        // Filter out legacy iPhoto albums (date events, Photo Stream)
-                        guard !isLegacy else { return }
-
-                        if let item = self.makeAlbumItem(from: nestedAlbum) {
+                        guard !isLegacyAlbumTitle(title) else { return }
+                        if let item = makeAlbumItem(from: nestedAlbum) {
                             folderAlbums.append(item)
                         }
                     }
                 }
 
-                // Write log
-                let logContent = logLines.joined(separator: "\n") + "\n\n"
-                if let data = logContent.data(using: .utf8) {
-                    if FileManager.default.fileExists(atPath: logFile.path) {
-                        if let handle = try? FileHandle(forWritingTo: logFile) {
-                            handle.seekToEndOfFile()
-                            handle.write(data)
-                            handle.closeFile()
-                        }
-                    } else {
-                        try? data.write(to: logFile)
-                    }
-                }
                 if !folderAlbums.isEmpty {
                     folderAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
                     hierarchy.folders.append(FolderItem(
@@ -156,7 +169,7 @@ class PhotosService: ObservableObject {
             options: nil
         )
         sharedAlbums.enumerateObjects { collection, _, _ in
-            if let item = self.makeAlbumItem(from: collection) {
+            if let item = makeAlbumItem(from: collection) {
                 hierarchy.sharedAlbums.append(item)
             }
         }
@@ -179,25 +192,32 @@ class PhotosService: ObservableObject {
         ]
 
         for subtype in usefulSmartAlbumSubtypes {
-            let albums = PHAssetCollection.fetchAssetCollections(
+            let smartAlbums = PHAssetCollection.fetchAssetCollections(
                 with: .smartAlbum,
                 subtype: subtype,
                 options: nil
             )
-            albums.enumerateObjects { collection, _, _ in
-                if let item = self.makeAlbumItem(from: collection) {
+            smartAlbums.enumerateObjects { collection, _, _ in
+                if let item = makeAlbumItem(from: collection) {
                     hierarchy.smartAlbums.append(item)
                 }
             }
         }
 
-        // 4. Sort all categories alphabetically
+        // Sort everything
         hierarchy.myAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         hierarchy.folders.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         hierarchy.sharedAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-        hierarchy.smartAlbums.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
 
-        self.albumHierarchy = hierarchy
+        return hierarchy
+    }
+
+    func loadAlbums() {
+        // Use background loading to avoid blocking UI
+        Task.detached { [weak self] in
+            let hierarchy = Self.loadAlbumsInBackground()
+            await self?.setAlbumHierarchy(hierarchy)
+        }
     }
 
     func toggleFolder(_ folderId: String) {
