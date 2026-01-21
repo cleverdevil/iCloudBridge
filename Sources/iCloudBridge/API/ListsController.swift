@@ -23,8 +23,10 @@ struct ListsController: RouteCollection {
         var result: [ListDTO] = []
         for list in lists {
             let reminders = try await remindersService.getReminders(in: list)
+            // Count only incomplete reminders to match default /reminders behavior
+            let incompleteCount = reminders.filter { !$0.isCompleted }.count
             let dto = await MainActor.run {
-                remindersService.toDTO(list, reminderCount: reminders.count)
+                remindersService.toDTO(list, reminderCount: incompleteCount)
             }
             result.append(dto)
         }
@@ -47,8 +49,10 @@ struct ListsController: RouteCollection {
         }
 
         let reminders = try await remindersService.getReminders(in: list)
+        // Count only incomplete reminders to match default /reminders behavior
+        let incompleteCount = reminders.filter { !$0.isCompleted }.count
         return await MainActor.run {
-            remindersService.toDTO(list, reminderCount: reminders.count)
+            remindersService.toDTO(list, reminderCount: incompleteCount)
         }
     }
 
