@@ -1,6 +1,7 @@
 .DS_Store
 /.build
 /build
+/icloud
 /Packages
 xcuserdata/
 DerivedData/
